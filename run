@@ -1,0 +1,9 @@
+#!/bin/bash
+#make -k
+make all
+#rm ./*.cmi
+#rm ./*.o
+#rm ./*.cmx
+
+#./first
+ocamlrun logic.bytes
