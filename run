@@ -6,4 +6,4 @@ make all
 #rm ./*.cmx
 
 #./first
-ocamlrun logic.bytes
+ocamlrun ./logic.bytes
