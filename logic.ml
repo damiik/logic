@@ -272,11 +272,12 @@ let () =
   done; *)
 
   Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out;
-
+ 
 
   (* let rec f x = buf_out.(x) <- sBuf.solve in_x.(x); if(x>0) then f (x-1) else 0
   in
-  f 7; *)
+  f 7; 
+  *)
   
   let and4_out = Array.make 8 (to_unit (("and4_out", LS_Low)::[])) in
 
