@@ -1,6 +1,7 @@
 (* type and4 = { in0: int; in1: int ; in2: int; in3: int; output: int } *)
 
 open Table;;
+open Array;;
 
 type lineStateT = LS_High | LS_Low | LS_Open 
 
@@ -259,45 +260,41 @@ let () =
   showLines tracks;
   (* Printf.printf "%s" (lineStatetoStr (ListMap.find "z" !tracks)); *)
   
-  let oe = Ok {lines=("oe", LS_High)::[]} in
-  let s0 = Ok {lines=("s0", LS_High)::[]} in
+  let oe = Ok {lines=("oe", LS_Low)::[]} in
+  let s0 = Ok {lines=("s0", LS_Low)::[]} in
   let s1 = Ok {lines=("s1", LS_Low)::[]} in
   let s2 = Ok {lines=("s2", LS_Low)::[]} in
 
-  let in0 = Ok {lines=("in0", LS_Low)::[]} in
-  let in1 = Ok {lines=("in1", LS_Low)::[]} in
-  let in2 = Ok {lines=("in2", LS_Low)::[]} in
-  let in3 = Ok {lines=("in3", LS_Low)::[]} in
-  let in4 = Ok {lines=("in4", LS_Low)::[]} in
-  let in5 = Ok {lines=("in5", LS_Low)::[]} in
-  let in6 = Ok {lines=("in6", LS_Low)::[]} in
-  let in7 = Ok {lines=("in7", LS_Low)::[]} in
+  let in_x = Array.make 8  (Ok {lines=("in", LS_Low)::[]}) in
+  for x = 0 to 7 do 
+    in_x.(x) <- (Ok {lines=(Printf.sprintf "in%d" x, LS_Low)::[]}) 
+  done;
 
   let in_oe_neg = sNeg.solve oe in
   let in_s0_neg = sNeg.solve s0 in
   let in_s1_neg = sNeg.solve s1 in
   let in_s2_neg = sNeg.solve s2 in
 
-  let buf_0_out = sBuf.solve in0 in
-  let buf_1_out = sBuf.solve in1 in
-  let buf_2_out = sBuf.solve in2 in
-  let buf_3_out = sBuf.solve in3 in
-  let buf_4_out = sBuf.solve in4 in
-  let buf_5_out = sBuf.solve in5 in
-  let buf_6_out = sBuf.solve in6 in
-  let buf_7_out = sBuf.solve in7 in
+  let buf_out = Array.make 8 (Ok {lines=("buf_out", LS_Low)::[]}) in
+  for x = 0 to 7 do 
+    buf_out.(x) <- (sBuf.solve in_x.(x))
+  done;
+  
+  let and4_out = Array.make 8 (Ok {lines=("and4_out", LS_Low)::[]}) in
 
-  let and4_0_out = make_unit (MUnit (buf_0_out::in_s2_neg::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve in
-  let and4_1_out = make_unit (MUnit (buf_1_out::in_s2_neg::in_s1_neg::s0::[])) |> sAnd4.solve in
-  let and4_2_out = make_unit (MUnit (buf_2_out::in_s2_neg::s1::in_s0_neg::[])) |> sAnd4.solve in
-  let and4_3_out = make_unit (MUnit (buf_3_out::in_s2_neg::s1::s0::[])) |> sAnd4.solve in
-  let and4_4_out = make_unit (MUnit (buf_4_out::s2::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve in
-  let and4_5_out = make_unit (MUnit (buf_5_out::s2::in_s1_neg::s0::[])) |> sAnd4.solve in
-  let and4_6_out = make_unit (MUnit (buf_6_out::s2::s1::in_s0_neg::[])) |> sAnd4.solve in
-  let and4_7_out = make_unit (MUnit (buf_7_out::s2::s1::s0::[])) |> sAnd4.solve in
+  and4_out.(0) <- (make_unit (MUnit (buf_out.(0)::in_s2_neg::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve);
+  and4_out.(1) <- (make_unit (MUnit (buf_out.(1)::in_s2_neg::in_s1_neg::s0::[])) |> sAnd4.solve);
+  and4_out.(2) <- (make_unit (MUnit (buf_out.(2)::in_s2_neg::s1::in_s0_neg::[])) |> sAnd4.solve);
+  and4_out.(3) <- (make_unit (MUnit (buf_out.(3)::in_s2_neg::s1::s0::[])) |> sAnd4.solve);
+  and4_out.(4) <- (make_unit (MUnit (buf_out.(4)::s2::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve);
+  and4_out.(5) <- (make_unit (MUnit (buf_out.(5)::s2::in_s1_neg::s0::[])) |> sAnd4.solve);
+  and4_out.(6) <- (make_unit (MUnit (buf_out.(6)::s2::s1::in_s0_neg::[])) |> sAnd4.solve);
+  and4_out.(7) <- (make_unit (MUnit (buf_out.(7)::s2::s1::s0::[])) |> sAnd4.solve);
 
-
-  let nor8_out = make_unit (MUnit (and4_0_out::and4_1_out::and4_2_out::and4_3_out::and4_4_out::and4_5_out::and4_6_out::and4_7_out::[])) |> sNor8.solve in
+  for x = 0 to 7 do 
+    Printf.printf "%s" (unitToStr and4_out.(x));  
+  done;
+  let nor8_out = make_unit (MUnit (and4_out.(0)::and4_out.(1)::and4_out.(2)::and4_out.(3)::and4_out.(4)::and4_out.(5)::and4_out.(6)::and4_out.(7)::[])) |> sNor8.solve in
 
   (* let out_y = make_unit (MUnit (in_oe_neg::nor8_out::[])) |> sTbuf.solve in
   let neg_y = make_unit (MUnit (in_oe_neg::nor8_out::[])) |> sTneg.solve *)
