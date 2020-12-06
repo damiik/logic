@@ -92,9 +92,23 @@ let sNeg : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e      
       | Ok unit' -> match unit'.lines with
-                    | [] -> Error {desc = "[NEG] missing input"}
-                    | (_, LS_High)::xs -> to_unit (("out", LS_Low)::xs)
-                    | _::xs -> to_unit (("out", LS_High)::xs)
+                    | [] -> Error {desc = "[sNeg] missing input"}
+                    | (_, LS_High)::xs -> to_unit (("sNeg", LS_Low)::xs)
+                    | _::xs -> to_unit (("sNeg", LS_High)::xs)
+} 
+
+(* Tri-state negator oe in *)
+let sTneg : ((unit, error) result) solver = {
+
+  solve = fun result' -> 
+      match result' with
+      | Error e ->  Error e      
+      | Ok unit' -> match unit'.lines with
+                    | [] -> Error {desc = "[tneg_out] missing input"}
+                    | _::[] -> Error {desc = "[tneg_out] missing input"}
+                    | (_, LS_High)::(_, LS_High)::xs -> to_unit (("tneg_out", LS_Low)::xs)
+                    | (_, LS_High)::(_, LS_Low)::xs -> to_unit (("tneg_out", LS_High)::xs)
+                    | _::xs -> to_unit (("tneg_out", LS_Open)::xs)
 } 
 
 let sBuf : ((unit, error) result) solver = {
@@ -103,8 +117,22 @@ let sBuf : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
-                    | [] -> Error {desc = "[NEG] missing input"} 
-                    | (_, b)::xs -> to_unit (("out", b)::xs)
+                    | [] -> Error {desc = "[sBuf] missing input"} 
+                    | (_, b)::xs -> to_unit (("sBuf", b)::xs)
+} 
+
+(* Tri-state bufor inputs: oe in *)
+let sTbuf : ((unit, error) result) solver = {
+
+  solve = fun result' -> 
+      match result' with
+      | Error e ->  Error e      
+      | Ok unit' -> match unit'.lines with
+                    | [] -> Error {desc = "[tbuf_out] missing input"}
+                    | _::[] -> Error {desc = "[tbuf_out] missing input"}
+                    | (_, LS_High)::(_, LS_Low)::xs -> to_unit (("tbuf_out", LS_Low)::xs)
+                    | (_, LS_High)::(_, LS_High)::xs -> to_unit (("tbuf_out", LS_High)::xs)
+                    | _::xs -> to_unit (("tbuf_out", LS_Open)::xs)
 } 
 
 let sAnd : ((unit, error) result) solver = {
@@ -113,9 +141,9 @@ let sAnd : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
-                    | (_, LS_High)::(_, LS_High)::xs -> to_unit (("out", LS_High)::xs) 
-                    | _::_::xs -> to_unit (("out", LS_Low)::xs) 
-                    | _ -> Error {desc = "[AND2] missing inputs"}  
+                    | (_, LS_High)::(_, LS_High)::xs -> to_unit (("sAnd", LS_High)::xs) 
+                    | _::_::xs -> to_unit (("sAnd", LS_Low)::xs) 
+                    | _ -> Error {desc = "[sAnd] missing inputs"}  
 } 
 
 let sAnd4 : ((unit, error) result) solver = {
@@ -124,9 +152,9 @@ let sAnd4 : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
-                    | (_, LS_High)::(_, LS_High)::(_, LS_High)::(_, LS_High)::xs -> to_unit (("out", LS_High)::xs) 
-                    | _::_::_::_::xs -> to_unit (("out", LS_Low)::xs) 
-                    | _ -> Error {desc = "[AND4] missing inputs"}  
+                    | (_, LS_High)::(_, LS_High)::(_, LS_High)::(_, LS_High)::xs -> to_unit (("sAnd4", LS_High)::xs) 
+                    | _::_::_::_::xs -> to_unit (("sAnd4", LS_Low)::xs) 
+                    | _ -> Error {desc = "[sAnd4] missing inputs"}  
 } 
 
 let sOr : ((unit, error) result) solver = {
@@ -135,9 +163,9 @@ let sOr : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with  
-                    | (_, LS_Low)::(n2, LS_Low)::xs -> to_unit (("out", LS_Low)::xs)
-                    | _::_::xs -> to_unit (("out", LS_High)::xs)
-                    | _ -> Error {desc = "[OR2] missing 2 inputs"}   
+                    | (_, LS_Low)::(n2, LS_Low)::xs -> to_unit (("sOr", LS_Low)::xs)
+                    | _::_::xs -> to_unit (("sOr", LS_High)::xs)
+                    | _ -> Error {desc = "[sOr] missing 2 inputs"}   
 }  
 
 let sNor8 : ((unit, error) result) solver = {
@@ -145,10 +173,10 @@ let sNor8 : ((unit, error) result) solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
-                    | (_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::xs -> to_unit (("out", LS_High)::xs)
-                    | _::_::_::_::_::_::_::_::xs -> to_unit (("out", LS_Low)::xs)
-                    | _ -> Error {desc = "[OR8] missing inputs"} 
+      | Ok unit' -> match unit'.lines with
+                    | (_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::xs -> to_unit (("sNor8", LS_High)::xs)
+                    | _::_::_::_::_::_::_::_::xs -> to_unit (("sNor8", LS_Low)::xs)
+                    | _ -> Error {desc = "[sNor8] missing inputs"} 
 }   
 
 
@@ -180,15 +208,15 @@ let return (x: 'a) : 'a solver  = { solve = fun _ -> Ok {lines=x;} }
       match result' with
       | Error e ->  Error e 
       | Ok unit' -> match unit'.lines with
-                    | [] -> Error {desc = "<*> missing input 0"} 
-                    |x1::[] -> Error {desc = "<*> missing input 1"} 
-                    |x1::x2::[] -> Error {desc = "<*> missing input 2"} 
-                    |x1::x2::x3::[] -> Error {desc = "<*> missing input 3"} 
+                    |[] -> Error {desc = "<*> missing input 0"} 
+                    |[x1] -> Error {desc = "<*> missing input 1"} 
+                    |[x1; x2] -> Error {desc = "<*> missing input 2"} 
+                    |[x1; x2; x3] -> Error {desc = "<*> missing input 3"} 
                     |(x1::x2::x3::x4::xs) -> 
-                      match p1.solve (to_unit (x1::x2::[])) with
+                      match p1.solve (to_unit [x1;x2;]) with
                         |Error error -> Error error
                         |Ok unit1 -> 
-                          match p2.solve (to_unit (x3::x4::[])) with 
+                          match p2.solve (to_unit [x3; x4]) with 
                             |Ok unit2 ->  to_unit (unit1.lines@unit2.lines)
                             |Error error -> Error error
 
@@ -202,9 +230,9 @@ let unitToStr (out: (unit, error) result) : string =
     let rec f = fun l ->
       match l  with 
       | [] -> ""
-      | (s, LS_High)::xs -> Printf.sprintf "[%s]:high %s\n" s (f xs);
-      | (s, LS_Low)::xs -> Printf.sprintf "[%s]:low %s\n" s (f xs);
-      | (s, LS_Open)::xs -> Printf.sprintf "[%s]:open %s\n" s (f xs);
+      | (s, LS_High)::xs -> Printf.sprintf "[ %s ]: <high> %s\n" s (f xs);
+      | (s, LS_Low)::xs -> Printf.sprintf "[ %s ]: <low> %s\n" s (f xs);
+      | (s, LS_Open)::xs -> Printf.sprintf "[ %s ]: <open> %s\n" s (f xs);
 
     in
     f o.lines
@@ -244,51 +272,53 @@ let showLines (t : lineMapT ref) =
   f (ListMap.bindings !t)
     
 let () = 
-  let tracks : lineMapT ref = ref ListMap.empty in
+  (* let tracks : lineMapT ref = ref ListMap.empty in
   let units : unitMapT ref = ref ListMap.empty in
   "x"::"y"::"z"::[] |> insertLines tracks;
-  showLines tracks;
+  showLines tracks; *)
   
   (* 74hc251 multiplexer simulation *)
-  
-  let oe = Ok {lines=("oe", LS_High)::[]} in
-  let s0 = Ok {lines=("s0", LS_Low)::[]} in
-  let s1 = Ok {lines=("s1", LS_Low)::[]} in
-  let s2 = Ok {lines=("s2", LS_Low)::[]} in
 
-  let in_x = Array.make 8 (to_unit (("in", LS_Low)::[])) in
-  Array.iteri (fun x _ -> in_x.(x) <- (to_unit ((Printf.sprintf "in%d" x, LS_Low)::[]))) in_x;
-  in_x.(0) <- (to_unit ((Printf.sprintf "in%d" 0, LS_High)::[]));
-  Array.iteri(fun i e -> Printf.printf "in_%d:%s" i (unitToStr e)) in_x;
+  let oe = to_unit [("oe", LS_Low)] in
+  let s0 = to_unit [("s0", LS_Low)] in
+  let s1 = to_unit [("s1", LS_Low)] in
+  let s2 = to_unit [("s2", LS_Low)] in
+
   let in_oe_neg = sNeg.solve oe in
   let in_s0_neg = sNeg.solve s0 in
   let in_s1_neg = sNeg.solve s1 in
   let in_s2_neg = sNeg.solve s2 in
 
-  let buf_out = Array.make 8 (to_unit (("buf_out", LS_Low)::[])) in
+  let in_x = Array.make 8 (to_unit (("in", LS_Low)::[])) in
+  Array.iteri (fun x _ -> in_x.(x) <- to_unit [(Printf.sprintf "in%d" x, LS_Low)]) in_x;
+  in_x.(0) <- to_unit [(Printf.sprintf "in%d" 0, LS_Low)];
+  
+  Array.iteri(fun i e -> Printf.printf "in_%d:%s" i (unitToStr e)) in_x;
+
+  let buf_out = Array.make 8 (to_unit [("buf_out", LS_Low)]) in
 
   Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out;
 
-  let and4_out = Array.make 8 (to_unit (("and4_out", LS_Low)::[])) in
+  let and4_out = Array.make 8 (to_unit [("and4_out", LS_Low)]) in
 
-  and4_out.(0) <- (make_unit (MUnit (buf_out.(0)::in_s2_neg::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve);
-  and4_out.(1) <- (make_unit (MUnit (buf_out.(1)::in_s2_neg::in_s1_neg::s0::[])) |> sAnd4.solve);
-  and4_out.(2) <- (make_unit (MUnit (buf_out.(2)::in_s2_neg::s1::in_s0_neg::[])) |> sAnd4.solve);
-  and4_out.(3) <- (make_unit (MUnit (buf_out.(3)::in_s2_neg::s1::s0::[])) |> sAnd4.solve);
-  and4_out.(4) <- (make_unit (MUnit (buf_out.(4)::s2::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve);
-  and4_out.(5) <- (make_unit (MUnit (buf_out.(5)::s2::in_s1_neg::s0::[])) |> sAnd4.solve);
-  and4_out.(6) <- (make_unit (MUnit (buf_out.(6)::s2::s1::in_s0_neg::[])) |> sAnd4.solve);
-  and4_out.(7) <- (make_unit (MUnit (buf_out.(7)::s2::s1::s0::[])) |> sAnd4.solve);
+  and4_out.(0) <- make_unit (MUnit [buf_out.(0); in_s2_neg; in_s1_neg; in_s0_neg]) |> sAnd4.solve;
+  and4_out.(1) <- make_unit (MUnit [buf_out.(1); in_s2_neg; in_s1_neg; s0]) |> sAnd4.solve;
+  and4_out.(2) <- make_unit (MUnit [buf_out.(2); in_s2_neg; s1; in_s0_neg]) |> sAnd4.solve;
+  and4_out.(3) <- make_unit (MUnit [buf_out.(3); in_s2_neg; s1; s0]) |> sAnd4.solve;
+  and4_out.(4) <- make_unit (MUnit [buf_out.(4); s2; in_s1_neg; in_s0_neg]) |> sAnd4.solve;
+  and4_out.(5) <- make_unit (MUnit [buf_out.(5); s2; in_s1_neg; s0]) |> sAnd4.solve;
+  and4_out.(6) <- make_unit (MUnit [buf_out.(6); s2; s1; in_s0_neg]) |> sAnd4.solve;
+  and4_out.(7) <- make_unit (MUnit [buf_out.(7); s2; s1; s0]) |> sAnd4.solve;
 
   Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (unitToStr e)) and4_out;
 
-  let nor8_out = make_unit (MUnit (and4_out.(0)::and4_out.(1)::and4_out.(2)::and4_out.(3)::and4_out.(4)::and4_out.(5)::and4_out.(6)::and4_out.(7)::[])) |> sNor8.solve in
+  let nor8_out = make_unit (MUnit [and4_out.(0); and4_out.(1); and4_out.(2); and4_out.(3); and4_out.(4); and4_out.(5); and4_out.(6); and4_out.(7)]) |> sNor8.solve in
 
-  (* let out_y = make_unit (MUnit (in_oe_neg::nor8_out::[])) |> sTbuf.solve in
-  let neg_y = make_unit (MUnit (in_oe_neg::nor8_out::[])) |> sTneg.solve *)
+  let out_y = (make_unit (MUnit [nor8_out; in_oe_neg]) |> sTbuf.solve) in
+  let neg_y = (make_unit (MUnit [nor8_out; in_oe_neg]) |> sTneg.solve) in
 
   (* : output -> out_y neg_y; *)
-  Printf.printf " result: %s\n"  (unitToStr nor8_out); 
+  Printf.printf ">>> result: %s\n"  (unitToStr (make_unit (MUnit [out_y; neg_y]))); 
 
   
 (*  result: [out]:low [2]:high [3]:low [out]:low [3]:low  mapowanie wyniku i zastosowanie >>= *)
