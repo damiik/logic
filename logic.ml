@@ -42,6 +42,7 @@ type 'a solver = {
 type mess = SUnit of ((unit, error) result) | MUnit of ((unit, error) result) list 
 type unit = { lines: signal list; }
 *)
+let to_unit s = Ok {lines = s}
 
 let make_unit (s: mess) : (unit, error) result = 
 
@@ -67,7 +68,8 @@ let make_unit (s: mess) : (unit, error) result =
 
           
     in
-    (Ok { lines = (f s []) })
+    to_unit (f s [])
+    (* (Ok { lines = (f s []) }) *)
 
 
 (* 
@@ -91,8 +93,8 @@ let sNeg : ((unit, error) result) solver = {
       | Error e ->  Error e      
       | Ok unit' -> match unit'.lines with
                     | [] -> Error {desc = "[NEG] missing input"}
-                    | (_, LS_High)::xs -> Ok {lines = ("out", LS_Low)::xs}
-                    | _::xs -> Ok {lines = ("out", LS_High)::xs}
+                    | (_, LS_High)::xs -> to_unit (("out", LS_Low)::xs)
+                    | _::xs -> to_unit (("out", LS_High)::xs)
 } 
 
 let sBuf : ((unit, error) result) solver = {
@@ -102,7 +104,7 @@ let sBuf : ((unit, error) result) solver = {
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
                     | [] -> Error {desc = "[NEG] missing input"} 
-                    | (_, b)::xs -> Ok {lines = ("out", b)::xs;}
+                    | (_, b)::xs -> to_unit (("out", b)::xs)
 } 
 
 let sAnd : ((unit, error) result) solver = {
@@ -111,8 +113,8 @@ let sAnd : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
-                    | (_, LS_High)::(_, LS_High)::xs -> Ok {lines = ("out", LS_High)::xs;}
-                    | _::_::xs -> Ok {lines = ("out", LS_Low)::xs;}
+                    | (_, LS_High)::(_, LS_High)::xs -> to_unit (("out", LS_High)::xs) 
+                    | _::_::xs -> to_unit (("out", LS_Low)::xs) 
                     | _ -> Error {desc = "[AND2] missing inputs"}  
 } 
 
@@ -122,8 +124,8 @@ let sAnd4 : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
-                    | (_, LS_High)::(_, LS_High)::(_, LS_High)::(_, LS_High)::xs -> Ok {lines = ("out", LS_High)::xs;}
-                    | _::_::_::_::xs -> Ok {lines = ("out", LS_Low)::xs;}
+                    | (_, LS_High)::(_, LS_High)::(_, LS_High)::(_, LS_High)::xs -> to_unit (("out", LS_High)::xs) 
+                    | _::_::_::_::xs -> to_unit (("out", LS_Low)::xs) 
                     | _ -> Error {desc = "[AND4] missing inputs"}  
 } 
 
@@ -133,8 +135,8 @@ let sOr : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with  
-                    | (_, LS_Low)::(n2, LS_Low)::xs -> Ok {lines = ("out", LS_Low)::xs;}
-                    | _::_::xs -> Ok {lines = ("out", LS_High)::xs}
+                    | (_, LS_Low)::(n2, LS_Low)::xs -> to_unit (("out", LS_Low)::xs)
+                    | _::_::xs -> to_unit (("out", LS_High)::xs)
                     | _ -> Error {desc = "[OR2] missing 2 inputs"}   
 }  
 
@@ -144,8 +146,8 @@ let sNor8 : ((unit, error) result) solver = {
       match result' with
       | Error e ->  Error e 
       |  Ok unit' -> match unit'.lines with
-                    | (_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::xs -> Ok {lines = ("out", LS_High)::xs;}
-                    | _::_::_::_::_::_::_::_::xs -> Ok {lines = ("out", LS_Low)::xs}
+                    | (_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::(_, LS_Low)::xs -> to_unit (("out", LS_High)::xs)
+                    | _::_::_::_::_::_::_::_::xs -> to_unit (("out", LS_Low)::xs)
                     | _ -> Error {desc = "[OR8] missing inputs"} 
 }   
 
@@ -174,8 +176,6 @@ let return (x: 'a) : 'a solver  = { solve = fun _ -> Ok {lines=x;} }
 
  let ( <*> ) (p1: 'a solver) (p2: 'b solver): 'c solver  = { 
   
-
-
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
@@ -185,20 +185,13 @@ let return (x: 'a) : 'a solver  = { solve = fun _ -> Ok {lines=x;} }
                     |x1::x2::[] -> Error {desc = "<*> missing input 2"} 
                     |x1::x2::x3::[] -> Error {desc = "<*> missing input 3"} 
                     |(x1::x2::x3::x4::xs) -> 
-                      match p1.solve (Ok {lines=(x1::(x2::[]));}) with
+                      match p1.solve (to_unit (x1::x2::[])) with
                         |Error error -> Error error
                         |Ok unit1 -> 
-                          match p2.solve (Ok {lines=(x3::(x4::[]));}) with
-                            |Ok unit2 -> Ok {lines=unit1.lines@unit2.lines}
+                          match p2.solve (to_unit (x3::x4::[])) with 
+                            |Ok unit2 ->  to_unit (unit1.lines@unit2.lines)
                             |Error error -> Error error
 
-  
-
-      (* match p1.solve unit with
-      | Error error -> Error error;      
-      | Ok unit' -> match p2.solve unit' with
-        | Error error -> Error error;      
-        | Ok unit'' -> Ok unit''; *)
 }
 
 let unitToStr (out: (unit, error) result) : string =
@@ -215,9 +208,6 @@ let unitToStr (out: (unit, error) result) : string =
 
     in
     f o.lines
-
-
-(* let result = "in_s2_neg"::"in_s1_neg"::"in_s3_neg"::"in_s2":[] |> make_input |> *)
 
 
 type unitT = VCC | GND | Not | And2 
@@ -260,27 +250,35 @@ let () =
   showLines tracks;
   (* Printf.printf "%s" (lineStatetoStr (ListMap.find "z" !tracks)); *)
   
-  let oe = Ok {lines=("oe", LS_Low)::[]} in
+  let oe = Ok {lines=("oe", LS_High)::[]} in
   let s0 = Ok {lines=("s0", LS_Low)::[]} in
   let s1 = Ok {lines=("s1", LS_Low)::[]} in
   let s2 = Ok {lines=("s2", LS_Low)::[]} in
 
-  let in_x = Array.make 8  (Ok {lines=("in", LS_Low)::[]}) in
-  for x = 0 to 7 do 
+  let in_x = Array.make 8 (to_unit (("in", LS_Low)::[])) in
+  Array.iteri (fun x _ -> in_x.(x) <- (to_unit ((Printf.sprintf "in%d" x, LS_Low)::[]))) in_x;
+  (* for x = 0 to 7 do 
     in_x.(x) <- (Ok {lines=(Printf.sprintf "in%d" x, LS_Low)::[]}) 
-  done;
+  done; *)
 
   let in_oe_neg = sNeg.solve oe in
   let in_s0_neg = sNeg.solve s0 in
   let in_s1_neg = sNeg.solve s1 in
   let in_s2_neg = sNeg.solve s2 in
 
-  let buf_out = Array.make 8 (Ok {lines=("buf_out", LS_Low)::[]}) in
-  for x = 0 to 7 do 
-    buf_out.(x) <- (sBuf.solve in_x.(x))
-  done;
+  let buf_out = Array.make 8 (to_unit (("buf_out", LS_Low)::[])) in
+  (* for x = 0 to 7 do 
+    buf_out.( x ) <- sBuf.solve in_x.( x )
+  done; *)
+
+  Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out;
+
+
+  (* let rec f x = buf_out.(x) <- sBuf.solve in_x.(x); if(x>0) then f (x-1) else 0
+  in
+  f 7; *)
   
-  let and4_out = Array.make 8 (Ok {lines=("and4_out", LS_Low)::[]}) in
+  let and4_out = Array.make 8 (to_unit (("and4_out", LS_Low)::[])) in
 
   and4_out.(0) <- (make_unit (MUnit (buf_out.(0)::in_s2_neg::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve);
   and4_out.(1) <- (make_unit (MUnit (buf_out.(1)::in_s2_neg::in_s1_neg::s0::[])) |> sAnd4.solve);
@@ -291,9 +289,11 @@ let () =
   and4_out.(6) <- (make_unit (MUnit (buf_out.(6)::s2::s1::in_s0_neg::[])) |> sAnd4.solve);
   and4_out.(7) <- (make_unit (MUnit (buf_out.(7)::s2::s1::s0::[])) |> sAnd4.solve);
 
-  for x = 0 to 7 do 
+  (* for x = 0 to 7 do 
     Printf.printf "%s" (unitToStr and4_out.(x));  
-  done;
+  done; *)
+  Array.iter(fun e -> Printf.printf "%s" (unitToStr e)) and4_out;
+
   let nor8_out = make_unit (MUnit (and4_out.(0)::and4_out.(1)::and4_out.(2)::and4_out.(3)::and4_out.(4)::and4_out.(5)::and4_out.(6)::and4_out.(7)::[])) |> sNor8.solve in
 
   (* let out_y = make_unit (MUnit (in_oe_neg::nor8_out::[])) |> sTbuf.solve in
