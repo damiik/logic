@@ -248,7 +248,8 @@ let () =
   let units : unitMapT ref = ref ListMap.empty in
   "x"::"y"::"z"::[] |> insertLines tracks;
   showLines tracks;
-  (* Printf.printf "%s" (lineStatetoStr (ListMap.find "z" !tracks)); *)
+  
+  (* 74hc251 multiplexer simulation *)
   
   let oe = Ok {lines=("oe", LS_High)::[]} in
   let s0 = Ok {lines=("s0", LS_Low)::[]} in
@@ -257,28 +258,17 @@ let () =
 
   let in_x = Array.make 8 (to_unit (("in", LS_Low)::[])) in
   Array.iteri (fun x _ -> in_x.(x) <- (to_unit ((Printf.sprintf "in%d" x, LS_Low)::[]))) in_x;
-  (* for x = 0 to 7 do 
-    in_x.(x) <- (Ok {lines=(Printf.sprintf "in%d" x, LS_Low)::[]}) 
-  done; *)
-
+  in_x.(0) <- (to_unit ((Printf.sprintf "in%d" 0, LS_High)::[]));
+  Array.iteri(fun i e -> Printf.printf "in_%d:%s" i (unitToStr e)) in_x;
   let in_oe_neg = sNeg.solve oe in
   let in_s0_neg = sNeg.solve s0 in
   let in_s1_neg = sNeg.solve s1 in
   let in_s2_neg = sNeg.solve s2 in
 
   let buf_out = Array.make 8 (to_unit (("buf_out", LS_Low)::[])) in
-  (* for x = 0 to 7 do 
-    buf_out.( x ) <- sBuf.solve in_x.( x )
-  done; *)
 
   Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out;
- 
 
-  (* let rec f x = buf_out.(x) <- sBuf.solve in_x.(x); if(x>0) then f (x-1) else 0
-  in
-  f 7; 
-  *)
-  
   let and4_out = Array.make 8 (to_unit (("and4_out", LS_Low)::[])) in
 
   and4_out.(0) <- (make_unit (MUnit (buf_out.(0)::in_s2_neg::in_s1_neg::in_s0_neg::[])) |> sAnd4.solve);
@@ -290,10 +280,7 @@ let () =
   and4_out.(6) <- (make_unit (MUnit (buf_out.(6)::s2::s1::in_s0_neg::[])) |> sAnd4.solve);
   and4_out.(7) <- (make_unit (MUnit (buf_out.(7)::s2::s1::s0::[])) |> sAnd4.solve);
 
-  (* for x = 0 to 7 do 
-    Printf.printf "%s" (unitToStr and4_out.(x));  
-  done; *)
-  Array.iter(fun e -> Printf.printf "%s" (unitToStr e)) and4_out;
+  Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (unitToStr e)) and4_out;
 
   let nor8_out = make_unit (MUnit (and4_out.(0)::and4_out.(1)::and4_out.(2)::and4_out.(3)::and4_out.(4)::and4_out.(5)::and4_out.(6)::and4_out.(7)::[])) |> sNor8.solve in
 
