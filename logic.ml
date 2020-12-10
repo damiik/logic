@@ -9,7 +9,7 @@ type signal = (string * lineStateT)
 
 
 
-type unit = { lines: signal list; }
+type unit = signal list
 type error = { desc: string;}
 
 type 'a linesResult = (('a, error) result) 
@@ -34,7 +34,7 @@ let unitToStr (out: unit) : string =
       | (s, LS_X)::xs -> Printf.sprintf "%s [ %s ]%d: <*>\n" (f xs (i+1)) s i;
 
     in
-    f out.lines 0 (* ((List.length out.lines) - 1) *)
+    f out 0 (* ((List.length out) - 1) *)
 
 let resultToStr (out: unit linesResult) : string =
 
@@ -50,7 +50,7 @@ let (+++) (u1: unit) (u2: unit) : unit =
       |[] -> l2
       |x::xs -> f (x::l2) xs
   in
-  {lines = f u1.lines u2.lines }
+   f u1 u2
 
 (* (+++) Lokomotywa l = l
 (Wagon x xs) +++ pociag = x +:+ (xs +++ pociag) *)
@@ -70,7 +70,7 @@ let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult
   let rec f  (l: (unit linesResult) list)  : unit linesResult = 
       (* let x::xs = u in Printf.printf "solve_unit:%s" (resultToStr u); *)
       match l with
-        | [] -> Printf.printf "solve_unit:[]"; Ok {lines = []}
+        | [] -> Printf.printf "solve_unit:[]"; Ok []
         | x::xs -> x >>= fun u -> 
                       Printf.printf "solve_unit:%s" (unitToStr u);
                       match f xs with
@@ -78,7 +78,7 @@ let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult
                         | Ok w -> Ok (u +++ w)
 
   in
-  let result = ref  {lines = []}
+  let result = ref []
   in
   (f lr) >>= fun u -> result := u ;
   us.solve (Ok !result)
@@ -102,8 +102,7 @@ let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult
 type mess = SUnit of ((unit, error) result) | MUnit of ((unit, error) result) list 
 type unit = { lines: signal list; }
  *)
-let to_result s = Ok {lines = s}
-let to_unit s = {lines = s}
+let to_result s = Ok s
 
 (* type linesResult = ((unit, error) result)  *)
 (* type unit = { lines: signal list; } *)
@@ -117,14 +116,14 @@ let rec make_unit (inp : unit linesResult list): unit linesResult =
                     | Error e -> Error e
                     | Ok u -> begin match acc with
                           |Error e -> Error e
-                          |Ok acc' -> (to_result (u.lines @ acc'.lines))
+                          |Ok acc' -> (to_result (u @ acc'))
                               end
                       end
                 | (x::xs) -> begin match x with
                     | Error e -> Error e
                     | Ok u -> begin match acc with
                           |Error e -> Error e
-                          |Ok acc' -> (f (to_result (u.lines @ acc'.lines)) xs)
+                          |Ok acc' -> (f (to_result (u @ acc')) xs)
                               end
                       end
   in
@@ -136,7 +135,7 @@ let sNeg : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e      
-      | Ok unit' -> match unit'.lines with
+      | Ok unit' -> match unit' with
                     | [] -> Error {desc = "[sNeg] missing input\n"}
                     | (_, LS_1)::xs -> to_result (("sNeg", LS_0)::xs)
                     | _::xs -> to_result (("sNeg", LS_1)::xs)
@@ -148,7 +147,7 @@ let sTneg : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e      
-      | Ok unit' -> match unit'.lines with
+      | Ok unit' -> match unit' with
                     | [] -> Error {desc = "[tneg_out] missing input\n"}
                     | _::[] -> Error {desc = "[tneg_out] missing input\n"}
                     | (_, LS_1)::(_, LS_1)::xs -> to_result (("tneg_out", LS_0)::xs)
@@ -161,7 +160,7 @@ let sBuf : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | [] -> Error {desc = "[sBuf] missing input\n"} 
                     | (_, b)::xs -> to_result (("sBuf", b)::xs)
 } 
@@ -172,7 +171,7 @@ let sTbuf : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | [] -> Error {desc = "[tbuf_out] missing input\n"}
                     | _::[] -> Error {desc = "[tbuf_out] missing input\n"}
                     | (_, LS_1)::(_, LS_0)::xs -> to_result (("tbuf_out", LS_0)::xs)
@@ -185,7 +184,7 @@ let sAnd : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_1)::(_, LS_1)::xs -> to_result (("sAnd", LS_1)::xs) 
                     | _::_::xs -> to_result (("sAnd", LS_0)::xs) 
                     | _ -> Error {desc = "[sAnd] missing input\n"}  
@@ -196,7 +195,7 @@ let sAnd3 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_1)::(_, LS_1)::(_, LS_1)::xs -> to_result (("sAnd3", LS_1)::xs) 
                     | _::_::_::xs -> to_result (("sAnd3", LS_0)::xs) 
                     | _ -> Error {desc = "[sAnd3] missing input\n"}  
@@ -207,7 +206,7 @@ let sAnd4 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_1)::(_, LS_1)::(_, LS_1)::(_, LS_1)::xs -> to_result (("sAnd4", LS_1)::xs) 
                     | _::_::_::_::xs -> to_result (("sAnd4", LS_0)::xs) 
                     | _ -> Error {desc = "[sAnd4] missing input\n"}  
@@ -218,7 +217,7 @@ let sAnd5 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_1)::(_, LS_1)::(_, LS_1)::(_, LS_1)::(_, LS_1)::xs -> to_result (("sAnd5", LS_1)::xs) 
                     | _::_::_::_::_::xs -> to_result (("sAnd5", LS_0)::xs) 
                     | _ -> Error {desc = "[sAnd5] missing input\n"}  
@@ -231,7 +230,7 @@ let sNand : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_1)::(_, LS_1)::xs -> to_result (("sNand", LS_0)::xs) 
                     | _::_::xs -> to_result (("sNand", LS_1)::xs) 
                     | _ -> Error {desc = "[sNand] missing input\n"}  
@@ -245,7 +244,7 @@ let sOr : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(n2, LS_0)::xs -> to_result (("sOr", LS_0)::xs)
                     | _::_::xs -> to_result (("sOr", LS_1)::xs)
                     | _ -> Error {desc = "[sOr] missing 2 inputs"}   
@@ -256,7 +255,7 @@ let sXor : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(n2, LS_0)::xs -> to_result (("sOr", LS_0)::xs)
                     | (_, LS_1)::(n2, LS_1)::xs -> to_result (("sOr", LS_0)::xs)
                     | _::_::xs -> to_result (("sOr", LS_1)::xs)
@@ -268,7 +267,7 @@ let sNor : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(_, LS_0)::xs -> to_result (("sNor", LS_1)::xs)
                     | _::_::xs -> to_result (("sNor", LS_0)::xs)
                     | _ -> Error {desc = "[sNor] missing input\n"} 
@@ -279,7 +278,7 @@ let sNor3 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> to_result (("sNor3", LS_1)::xs)
                     | _::_::_::xs -> to_result (("sNor3", LS_0)::xs)
                     | _ -> Error {desc = "[sNor3] missing input\n"} 
@@ -291,7 +290,7 @@ let sNor4 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> to_result (("sNor4", LS_1)::xs)
                     | _::_::_::_::xs -> to_result (("sNor4", LS_0)::xs)
                     | _ -> Error {desc = "[sNor4] missing input\n"} 
@@ -303,7 +302,7 @@ let sNor5 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> to_result (("sNor5", LS_1)::xs)
                     | _::_::_::_::_::xs -> to_result (("sNor5", LS_0)::xs)
                     | _ -> Error {desc = "[sNor5] missing input\n"} 
@@ -315,7 +314,7 @@ let sNor8 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> to_result (("sNor8", LS_1)::xs)
                     | _::_::_::_::_::_::_::_::xs -> to_result (("sNor8", LS_0)::xs)
                     | _ -> Error {desc = "[sNor8] missing input\n"} 
@@ -326,7 +325,7 @@ let sOr4 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
                     | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> to_result (("sNor4", LS_0)::xs)
                     | _::_::_::_::xs -> to_result (("sNor4", LS_1)::xs)
                     | _ -> Error {desc = "[sNor4] missing input\n"} 
@@ -340,7 +339,7 @@ let s74hc251 : unit solver = {
 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> match unit'.lines with
+      |  Ok unit' -> match unit' with
           | [] -> Error { desc = "[s74hc251] missing input\n" } ;
           | (oe'::s0'::s1'::s2'::in0::in1::in2::in3::in4::in5::in6::in7::xs) -> 
               let oe = to_result [oe'] in
@@ -402,7 +401,7 @@ let s74hc153 : unit solver = {
 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> begin match unit'.lines with
+      |  Ok unit' -> begin match unit' with
           | [] -> Error { desc = "[s74hc153] missing input\n" } ;
           | (ea'::eb'::s0'::s1'::in0a::in1a::in2a::in3a::in0b::in1b::in2b::in3b::xs) -> 
               let ea = to_result[ea'] in
@@ -462,7 +461,7 @@ let s74hc283 : unit solver = {
 
       match result' with
       | Error e ->  Error e 
-      |  Ok unit' -> begin match unit'.lines with
+      |  Ok unit' -> begin match unit' with
           | [] -> Error { desc = "[s74hc283] missing input\n" } ;
           | (cin'::a1'::a2'::a3'::a4'::b1'::b2'::b3'::b4'::xs) -> 
               let cin = to_result [cin'] in (* carry in *)
@@ -547,7 +546,7 @@ let s74hc283 : unit solver = {
   solve = fun input -> 
   
     input |> (p1 >>= fun a -> p2 >>= fun b -> 
-      return (a.lines @ b.lines)).solve;
+      return (a @ b)).solve;
 }  *)
 
  (* let ( <*> ) (p1: 'a solver) (p2: 'b solver): 'c solver  = { 
@@ -555,7 +554,7 @@ let s74hc283 : unit solver = {
   solve = fun result' -> 
       match result' with
       | Error e ->  Error e 
-      | Ok unit' -> match unit'.lines with
+      | Ok unit' -> match unit' with
                     |[] -> Error {desc = "<*> missing input\n 0"} 
                     |[x1] -> Error {desc = "<*> missing input\n 1"} 
                     |[x1; x2] -> Error {desc = "<*> missing input\n 2"} 
@@ -565,7 +564,7 @@ let s74hc283 : unit solver = {
                         |Error error -> Error error
                         |Ok unit1 -> 
                           match p2.solve (to_result [x3; x4]) with 
-                            |Ok unit2 ->  to_result (unit1.lines@unit2.lines)
+                            |Ok unit2 ->  to_result (unit1@unit2)
                             |Error error -> Error error
 
 } *)
@@ -606,7 +605,7 @@ let showLines (t : lineMapT ref) =
     
 let () = 
   (* rec make_unit (inp : unit linesResult list): unit linesResult *)
-  let t0 = {lines = [                       
+  let t0 = [                       
              ("a0", LS_0);
              ("a1", LS_0);
              ("a2", LS_0);
@@ -615,9 +614,9 @@ let () =
              ("b1", LS_1);
              ("b2", LS_1);
              ("b3", LS_1);
-            ]} in
+            ] in
 
-  let t1 = List.map (fun e -> Ok {lines= [e]}) t0.lines
+  let t1 = List.map (fun e -> Ok [e]) t0
   in
   (* let t1 = [                       
             Ok {lines = [("a0", LS_0)]};
@@ -702,19 +701,19 @@ let () =
                                              sum_b.(0); sum_b.(1); sum_b.(2); sum_b.(3)] |> s74hc283.solve) in
               (* Printf.printf ">>> sum0 result:\n%s\n" (resultToStr sum1);   *)
               let a = sum1 >>= fun s74hc283_out -> 
-                match s74hc283_out.lines with
+                match s74hc283_out with
                   |s1::s2::s3::s4::carry1::sx -> 
                       let sum2 = (make_unit [to_result [carry1]; sum_a.(4); sum_a.(5); sum_a.(6); sum_a.(7); 
                                                               sum_b.(4); sum_b.(5); sum_b.(6); sum_b.(7)] |> s74hc283.solve) in
                       sum2 >>= fun s74hc283_out2 -> 
-                          begin match s74hc283_out2.lines with
+                          begin match s74hc283_out2 with
                             |s5::s6::s7::s8::carry2::sx -> 
                                     (* Printf.printf ">>> result:\n%s\n" (resultToStr (Ok {lines=[s1; s2; s3; s4; s5; s6; s7; s8; carry2]})); *)
-                                    Ok {lines=[]}
-                            | _ -> Ok {lines=[]}
+                                    Ok []
+                            | _ -> Ok []
                           end
 
-                  | _ -> Ok {lines=[]}
+                  | _ -> Ok []
   in Printf.printf "bye.";
   (* in
   Printf.printf ">>> result:\n%s\n"  (resultToStr a) *)
