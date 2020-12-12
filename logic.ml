@@ -42,11 +42,42 @@ let resultToStr (out: unit linesResult) : string =
   | Error error -> error.desc
   | Ok o -> unitToStr o
 
+let rec pow(x, n) =
+    if n=0 then 1 else x * pow(x, n-1)
 
 
+let unitToNum (out: unit) : int =
 
-(* (+++) Lokomotywa l = l
-(Wagon x xs) +++ pociag = x +:+ (xs +++ pociag) *)
+    let rec f = fun l i acc ->
+      match l with 
+      | [] -> acc
+      | (s, LS_1)::xs ->  (f xs (i+1) acc + pow (2, i))
+      | (s, LS_0)::xs ->  (f xs (i+1) acc)
+      | (s, LS_X)::xs ->  (f xs (i+1) acc)
+
+    in
+    (f out 0 0) (* ((List.length out) - 1) *)
+
+let resultToNum (out: unit linesResult) : int =
+
+  match out with
+  | Error error -> -1
+  | Ok o -> unitToNum o
+
+
+  let numToUnit8 n lab = 
+    let a = Array.make 8 (Ok [(lab, LS_0)]) in
+    a.(0) <- Ok [(Printf.sprintf"%s0" lab, if (n land 0x01) > 0 then LS_1 else LS_0)];
+    a.(1) <- Ok [(Printf.sprintf"%s1" lab, if (n land 0x02) > 0 then LS_1 else LS_0)];
+    a.(2) <- Ok [(Printf.sprintf"%s2" lab, if (n land 0x04) > 0 then LS_1 else LS_0)];
+    a.(3) <- Ok [(Printf.sprintf"%s3" lab, if (n land 0x08) > 0 then LS_1 else LS_0)];
+    a.(4) <- Ok [(Printf.sprintf"%s4" lab, if (n land 0x10) > 0 then LS_1 else LS_0)];
+    a.(5) <- Ok [(Printf.sprintf"%s5" lab, if (n land 0x20) > 0 then LS_1 else LS_0)];
+    a.(6) <- Ok [(Printf.sprintf"%s6" lab, if (n land 0x40) > 0 then LS_1 else LS_0)];
+    a.(7) <- Ok [(Printf.sprintf"%s7" lab, if (n land 0x80) > 0 then LS_1 else LS_0)];
+    a
+
+
 
 let ( >>= )  (p: 'a linesResult) (f: 'a -> 'b linesResult)  : 'b linesResult =
   
@@ -55,8 +86,8 @@ let ( >>= )  (p: 'a linesResult) (f: 'a -> 'b linesResult)  : 'b linesResult =
       | Error error -> Error error
 
 
-
-let (+++) (u1: unit linesResult ) (u2: unit linesResult) : unit linesResult =
+(* monoid ++ *)
+let (++) (u1: unit linesResult ) (u2: unit linesResult) : unit linesResult =
 
   u1 >>= fun u1' -> u2 >>= fun u2' -> Ok ( u1' @  u2')
   
@@ -330,30 +361,30 @@ let s74hc251 : unit solver = {
           Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out;
 
           let and4_out = Array.make 8 (Ok [("and4_out", LS_0)]) in
-          and4_out.(0) <- buf_out.(0) +++ in_s2_neg +++ in_s1_neg +++ in_s0_neg |> sAnd4.solve;
-          and4_out.(1) <- buf_out.(1) +++ in_s2_neg +++ in_s1_neg +++ s0 |> sAnd4.solve;
-          and4_out.(2) <- buf_out.(2) +++ in_s2_neg +++ s1 +++ in_s0_neg |> sAnd4.solve;
-          and4_out.(3) <- buf_out.(3) +++ in_s2_neg +++ s1 +++ s0 |> sAnd4.solve;
-          and4_out.(4) <- buf_out.(4) +++ s2 +++ in_s1_neg +++ in_s0_neg |> sAnd4.solve;
-          and4_out.(5) <- buf_out.(5) +++ s2 +++ in_s1_neg +++ s0 |> sAnd4.solve;
-          and4_out.(6) <- buf_out.(6) +++ s2 +++ s1 +++ in_s0_neg |> sAnd4.solve;
-          and4_out.(7) <- buf_out.(7) +++ s2 +++ s1 +++ s0 |> sAnd4.solve;
+          and4_out.(0) <- buf_out.(0) ++ in_s2_neg ++ in_s1_neg ++ in_s0_neg |> sAnd4.solve;
+          and4_out.(1) <- buf_out.(1) ++ in_s2_neg ++ in_s1_neg ++ s0 |> sAnd4.solve;
+          and4_out.(2) <- buf_out.(2) ++ in_s2_neg ++ s1 ++ in_s0_neg |> sAnd4.solve;
+          and4_out.(3) <- buf_out.(3) ++ in_s2_neg ++ s1 ++ s0 |> sAnd4.solve;
+          and4_out.(4) <- buf_out.(4) ++ s2 ++ in_s1_neg ++ in_s0_neg |> sAnd4.solve;
+          and4_out.(5) <- buf_out.(5) ++ s2 ++ in_s1_neg ++ s0 |> sAnd4.solve;
+          and4_out.(6) <- buf_out.(6) ++ s2 ++ s1 ++ in_s0_neg |> sAnd4.solve;
+          and4_out.(7) <- buf_out.(7) ++ s2 ++ s1 ++ s0 |> sAnd4.solve;
 
           (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (unitToStr e)) and4_out; *)
 
-          let nor8_out = and4_out.(0) +++ 
-                         and4_out.(1) +++ 
-                         and4_out.(2) +++ 
-                         and4_out.(3) +++ 
-                         and4_out.(4) +++ 
-                         and4_out.(5) +++ 
-                         and4_out.(6) +++ 
+          let nor8_out = and4_out.(0) ++ 
+                         and4_out.(1) ++ 
+                         and4_out.(2) ++ 
+                         and4_out.(3) ++ 
+                         and4_out.(4) ++ 
+                         and4_out.(5) ++ 
+                         and4_out.(6) ++ 
                          and4_out.(7) |> sNor8.solve in
           (* Printf.printf "nor8_out: %s\n"  (unitToStr (make_unit[nor8_out]))  *)
           
-          let out_y = nor8_out +++ in_oe_neg |> sTbuf.solve in
-          let neg_y = nor8_out +++ in_oe_neg |> sTneg.solve in
-          (out_y +++ neg_y +++ (Ok xs))
+          let out_y = nor8_out ++ in_oe_neg |> sTbuf.solve in
+          let neg_y = nor8_out ++ in_oe_neg |> sTneg.solve in
+          (out_y ++ neg_y ++ (Ok xs))
 
       | _ -> Error { desc = "[s74hc251] missing input\n" } ;
       
@@ -387,15 +418,6 @@ let s74hc153 : unit solver = {
                   Ok [in2b]; 
                   Ok [in3b] |] in
 
-              (* let in_x = Array.make 8 (Ok [("in", LS_0)]) in *)
-              (* Array.iteri (fun x _ -> in_x.(x) <- Ok [(Printf.sprintf "in%d" x, LS_0)]) in_x; *)
-              (* in_x.(1) <- Ok [(Printf.sprintf "in%d" 1, LS_0)]; *)
-              
-              (* Array.iteri (fun i e -> Printf.printf "in_%d:%s" i (unitToStr e)) in_x; *)
-
-              (* let buf_out = Array.make 8 (Ok [("buf_out", LS_0)]) in
-              Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out; *)
-
               let and4_out = Array.make 8 (Ok [("and4_out", LS_0)]) in
               and4_out.(0) <- solve_unit [in_x.(0); in_s1_neg; in_s0_neg; in_ea_neg] sAnd4;
               and4_out.(1) <- solve_unit [in_x.(1); in_s1_neg; s0; in_ea_neg] sAnd4;
@@ -406,10 +428,10 @@ let s74hc153 : unit solver = {
               and4_out.(6) <- solve_unit [in_x.(6); s1; in_s0_neg; in_eb_neg] sAnd4;
               and4_out.(7) <- solve_unit [in_x.(7); s1; s0; in_eb_neg] sAnd4;
 
-              Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out; 
+              (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
 
-              let or4a_out = and4_out.(0) +++ and4_out.(1) +++ and4_out.(2) +++ and4_out.(3) |> sOr4.solve in
-              let or4b_out = and4_out.(4) +++ and4_out.(5) +++ and4_out.(6) +++ and4_out.(7) |> sOr4.solve in
+              let or4a_out = and4_out.(0) ++ and4_out.(1) ++ and4_out.(2) ++ and4_out.(3) |> sOr4.solve in
+              let or4b_out = and4_out.(4) ++ and4_out.(5) ++ and4_out.(6) ++ and4_out.(7) |> sOr4.solve in
               (* Printf.printf "nor8_out: %s\n"  (unitToStr (make_unit[nor8_out])); *)
               
               make_unit [or4a_out; or4b_out; (Ok xs)];
@@ -418,89 +440,132 @@ let s74hc153 : unit solver = {
          end
 }
 
+(* 74hc283 sumator simulation *)
 let s74hc283 : unit solver = {
 
   solve = fun result' -> 
       result' >>= fun unit' ->
           begin match unit' with
           | [] -> Error { desc = "[s74hc283] missing input\n" } ;
-          | (cin'::a1'::a2'::a3'::a4'::b1'::b2'::b3'::b4'::xs) -> 
-              let cin = Ok [cin'] in (* carry in *)
+          | (cin::a1::a2::a3::a4::b1::b2::b3::b4::xs) -> 
 
-              let a1 = Ok [a1'] in
-              let a2 = Ok [a2'] in
-              let a3 = Ok [a3'] in
-              let a4 = Ok [a4'] in
-
-              let b1 = Ok [b1'] in
-              let b2 = Ok [b2'] in
-              let b3 = Ok [b3'] in
-              let b4 = Ok [b4'] in
-
-              let cin_neg = sNeg.solve cin in
+              let cin_neg = Ok [cin] |> sNeg.solve in
 
               let nand2_out = Array.make 4 (Ok [("and2_out", LS_0)]) in
               let nor2_out = Array.make 4 (Ok [("nor2_out", LS_0)]) in
 
-              nand2_out.(0) <- a1 +++ b1|> sNand.solve;
-              nor2_out.(0) <- a1 +++ b1 |> sNor.solve;
-              nand2_out.(1) <- a2 +++ b2 |> sNand.solve;
-              nor2_out.(1) <- a2 +++ b2 |> sNor.solve;
-              nand2_out.(2) <- a3 +++ b3 |> sNand.solve;
-              nor2_out.(2) <- a3 +++ b3 |> sNor.solve;
-              nand2_out.(3) <- a4 +++ b4 |> sNand.solve;
-              nor2_out.(3) <- a4 +++ b4 |> sNor.solve;
+              nand2_out.(0) <- Ok [a1; b1] |> sNand.solve;
+              nor2_out.(0) <- Ok [a1; b1] |> sNor.solve;
+              nand2_out.(1) <- Ok [a2; b2] |> sNand.solve;
+              nor2_out.(1) <- Ok [a2; b2] |> sNor.solve;
+              nand2_out.(2) <- Ok [a3; b3] |> sNand.solve;
+              nor2_out.(2) <- Ok [a3; b3] |> sNor.solve;
+              nand2_out.(3) <- Ok [a4; b4] |> sNand.solve;
+              nor2_out.(3) <- Ok [a4; b4] |> sNor.solve;
 
-              let or2_out = Array.make 4 (Ok [("nor2_out", LS_0)]) in
-              or2_out.(0) <- sNeg.solve nor2_out.(0);
-              or2_out.(1) <- sNeg.solve nor2_out.(1);
-              or2_out.(2) <- sNeg.solve nor2_out.(2);
-              or2_out.(3) <- sNeg.solve nor2_out.(3);
+              let sum1 = (Ok [cin]) ++ ((sNeg.solve nor2_out.(0)) ++ nand2_out.(0) |> sAnd.solve) |> sXor.solve in
+              let sum2 = ((cin_neg ++ nand2_out.(0) |> sAnd.solve) ++ nor2_out.(0) |> sNor.solve) ++ ((sNeg.solve nor2_out.(1)) ++ nand2_out.(1) |> sAnd.solve) |> sXor.solve in
+              let sum3 = (
+                  (cin_neg ++ nand2_out.(0) ++ nand2_out.(1) |> sAnd3.solve) ++ 
+                  (nor2_out.(0) ++ nand2_out.(1) |> sAnd.solve) ++ 
+                  nor2_out.(1) |> sNor3.solve
+                ) ++ 
+                ((sNeg.solve nor2_out.(2)) ++ nand2_out.(2) |> sAnd.solve) |> sXor.solve in
+              let sum4 = (
+                  (cin_neg ++ nand2_out.(0) ++ nand2_out.(1) ++ nand2_out.(2) |> sAnd4.solve) ++ 
+                  (nand2_out.(1) ++ nand2_out.(2) ++ nor2_out.(0) |> sAnd3.solve) ++ 
+                  (nand2_out.(2) ++ nor2_out.(1) |> sAnd.solve) ++ 
+                  nor2_out.(2) |> sNor4.solve
+                ) ++ 
+                ((sNeg.solve nor2_out.(3)) ++ nand2_out.(3) |> sAnd.solve) |> sXor.solve in
+              let overflow = ref (
+                  (cin_neg ++ nand2_out.(0) ++ nand2_out.(1) ++ nand2_out.(2) ++ nand2_out.(3) |> sAnd5.solve) ++ 
+                  (nand2_out.(1) ++ nand2_out.(2) ++ nand2_out.(3) ++ nor2_out.(0) |> sAnd4.solve) ++ 
+                  (nand2_out.(2) ++ nand2_out.(3) ++ nor2_out.(1) |> sAnd3.solve) ++ 
+                  (nand2_out.(3) ++ nor2_out.(2) |> sAnd.solve) ++ 
+                  nor2_out.(3) |> sNor5.solve
+                ) in
 
-              let l1out = Array.make 14 (Ok [("l1out", LS_0)]) in
-
-              l1out.(0) <- or2_out.(0) +++ nand2_out.(0) |> sAnd.solve; 
-              l1out.(1) <- cin_neg +++ nand2_out.(0) |> sAnd.solve; 
-              l1out.(2) <- or2_out.(1) +++ nand2_out.(1) |> sAnd.solve; 
-
-              l1out.(3) <- cin_neg +++ nand2_out.(0) +++ nand2_out.(1) |> sAnd3.solve; 
-              l1out.(4) <- nor2_out.(0) +++ nand2_out.(1) |> sAnd.solve; 
-              l1out.(5) <- or2_out.(2) +++ nand2_out.(2) |> sAnd.solve; 
-
-              l1out.(6) <- cin_neg +++ nand2_out.(0) +++ nand2_out.(1) +++ nand2_out.(2) |> sAnd4.solve; 
-              l1out.(7) <- nand2_out.(1) +++ nand2_out.(2) +++ nor2_out.(0) |> sAnd3.solve; 
-              l1out.(8) <- nand2_out.(2) +++ nor2_out.(1) |> sAnd.solve; 
-
-              l1out.(9) <- or2_out.(3) +++ nand2_out.(3) |> sAnd.solve; 
-
-              l1out.(10) <- cin_neg +++ nand2_out.(0) +++ nand2_out.(1) +++ nand2_out.(2) +++ nand2_out.(3) |> sAnd5.solve; 
-              l1out.(11) <- nand2_out.(1) +++ nand2_out.(2) +++ nand2_out.(3) +++ nor2_out.(0) |> sAnd4.solve; 
-              l1out.(12) <- nand2_out.(2) +++ nand2_out.(3) +++ nor2_out.(1) |> sAnd3.solve; 
-              l1out.(13) <- nand2_out.(3) +++ nor2_out.(2) |> sAnd.solve; 
-
-              let l2out = Array.make 4 (Ok [("l2out", LS_0)]) in
-
-              l2out.(0) <- l1out.(1) +++ nor2_out.(0) |> sNor.solve;
-              l2out.(1) <- l1out.(3) +++ l1out.(4) +++ nor2_out.(1) |> sNor3.solve;
-              l2out.(2) <- l1out.(6) +++ l1out.(7) +++ l1out.(8) +++ nor2_out.(2) |> sNor4.solve;
-              l2out.(3) <- l1out.(10) +++ l1out.(11) +++ l1out.(12) +++ l1out.(13) +++ nor2_out.(3) |> sNor5.solve;
-
-              let sum1 = cin +++ l1out.(0) |> sXor.solve in
-              let sum2 = l2out.(0) +++ l1out.(2) |> sXor.solve in
-              let sum3 = l2out.(1) +++ l1out.(5) |> sXor.solve in
-              let sum4 = l2out.(2) +++ l1out.(9) |> sXor.solve in
-              let overflow = ref l2out.(3) in
-
-              (* Printf.printf "nor8_out: %s\n"  (unitToStr (make_unit[nor8_out])) +++ *)
+              (* Printf.printf "nor8_out: %s\n"  (unitToStr (make_unit[nor8_out])) ++ *)
               
-              (sum1 +++ sum2 +++ sum3 +++ sum4 +++ !overflow +++ (Ok xs))
+              (sum1 ++ sum2 ++ sum3 ++ sum4 ++ !overflow ++ (Ok xs))
 
           | _ -> Error { desc = "[s74hc283] missing input\n" } ;
           end
 }
 
 
+(* 2x 74hc283 sumator simulation *)
+let s2x74hc283 : unit solver = {
 
+  solve = fun result' -> 
+    result' >>= fun unit' -> 
+    match unit' with
+      | [] -> Error { desc = "[s2x74hc283] missing input\n" };
+      | carry0::a0::a1::a2::a3::a4::a5::a6::a7::b0::b1::b2::b3::b4::b5::b6::b7::xs -> 
+         Ok [carry0; a0; a1; a2; a3; b0; b1; b2; b3] |> 
+         s74hc283.solve >>= fun sum1_u -> begin match sum1_u with
+            | s1::s2::s3::s4::carry1::sx -> Ok [carry1; a4; a5; a6; a7; b4; b5; b6; b7] |> 
+              s74hc283.solve >>= fun sum2_u -> begin match sum2_u with
+                  | s5::s6::s7::s8::carry2::sx -> Ok [s1; s2; s3; s4; s5; s6; s7; s8; carry2];
+                  | _ -> Error { desc = "[s2x74hc283] missing input\n" } ;
+                end
+            | _ -> Error { desc = "[s2x74hc283] missing input\n" } ;
+          end
+
+      | _ -> Error { desc = "[s2x74hc283] missing input\n" };
+                            
+}
+
+
+(* Ok [ea; eb; s0; s1; in0a; in1a; in2a; in3a; in0b; in1b; in2b; in3b] ->  |> *)
+(*  za0::zb0::za1::zb1::za2::zb2::za3::zb3::za4::zb4::za5::zb5::za6::zb6::za7::zb7::sx *)
+(* 2x 74hc283 sumator simulation *)
+let sGigatronALU : unit solver = {
+
+  solve = fun result' -> 
+    result' >>= fun unit' -> 
+    let l = ("L", LS_0) in
+    let h = ("H", LS_1) in
+    match unit' with
+      | [] -> Error { desc = "[s2x74hc283] missing input\n" };
+      | al::ar0::ar1::ar2::ar3::ac0::ac1::ac2::ac3::ac4::ac5::ac6::ac7::bus0::bus1::bus2::bus3::bus4::bus5::bus6::bus7::xs -> 
+         Ok [l; al; ac0; bus0; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit0 -> 
+         Ok [l; al; ac1; bus1; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit1 ->
+         Ok [l; al; ac2; bus2; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit2 ->  
+         Ok [l; al; ac3; bus3; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit3 -> 
+         Ok [al; l; bus4; ac4; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit4 ->  
+         Ok [al; l; bus5; ac5; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit5 -> 
+         Ok [al; l; bus6; ac6; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit6 -> 
+         Ok [al; l; bus7; ac7; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit7 ->      
+         
+          begin match unit0 @ unit1 @ unit2 @ unit3 @ unit4 @ unit5 @ unit6 @ unit7 with
+            | za0::zb0::za1::zb1::za2::zb2::za3::zb3::za4::zb4::za5::zb5::za6::zb6::za7::zb7::sx -> 
+              Ok [ar0; za0; za1; za2; za3; za4; za5; za6; za7; zb0; zb1; zb2; zb3; zb4; zb5; zb6; zb7] |> s2x74hc283.solve 
+            | _ -> Error { desc = "[sGigatronALU] missing input\n" } ;
+          end
+
+      | _ -> Error { desc = "[sGigatronALU] missing input\n" };
+                            
+}
+
+
+
+(* 
+
+                  let _ = sum1 >>= (fun s74hc283_out -> 
+                      begin match s74hc283_out with
+                      |s1::s2::s3::s4::carry1::sx -> 
+                          let sum2 = Ok [carry1; a4; a5; a6; a7; b4; b5; b6; b7] |> s74hc283.solve in
+                          sum2 >>= (fun s74hc283_out2 -> 
+                            begin match s74hc283_out2 with
+                              |s5::s6::s7::s8::carry2::sx ->( Ok [s1; s2; s3; s4; s5; s6; s7; s8; carry2]);
+                              |_ -> Error { desc = "[s2x74hc283] missing input\n" } ;
+                              end);
+                      |_ -> Error { desc = "[s2x74hc283] missing input\n" } ;
+                      end);
+
+ *)
 
 (* let ( <*> ) (p1: 'a solver) (p2: 'b solver): 'c solver  = { 
   
@@ -639,53 +704,33 @@ let () =
 
  
 
-  let carry0 = Ok [("cin", LS_0)] in
+  let l = Ok [("l", LS_0)] in
+  let h = Ok [("h", LS_1)] in
+  let al = Ok [("al", LS_0)] in (* 0:LS_1 lub akumulator:LS_0 *)
+  let ar0 = Ok [("cin", LS_0)] in (* carry in *)
 
-  let number_to_unit8 n lab = 
-    let a = Array.make 8 (Ok [(lab, LS_0)]) in
-    a.(0) <- Ok [(Printf.sprintf"%s0" lab, if (n land 0x01) > 0 then LS_1 else LS_0)];
-    a.(1) <- Ok [(Printf.sprintf"%s1" lab, if (n land 0x02) > 0 then LS_1 else LS_0)];
-    a.(2) <- Ok [(Printf.sprintf"%s2" lab, if (n land 0x04) > 0 then LS_1 else LS_0)];
-    a.(3) <- Ok [(Printf.sprintf"%s3" lab, if (n land 0x08) > 0 then LS_1 else LS_0)];
-    a.(4) <- Ok [(Printf.sprintf"%s4" lab, if (n land 0x10) > 0 then LS_1 else LS_0)];
-    a.(5) <- Ok [(Printf.sprintf"%s5" lab, if (n land 0x20) > 0 then LS_1 else LS_0)];
-    a.(6) <- Ok [(Printf.sprintf"%s6" lab, if (n land 0x40) > 0 then LS_1 else LS_0)];
-    a.(7) <- Ok [(Printf.sprintf"%s7" lab, if (n land 0x80) > 0 then LS_1 else LS_0)];
-    a in
+  let sum_a = numToUnit8 15 "a" in
 
-  let sum_a = number_to_unit8 0xff "a" in
+  let sum_b = numToUnit8 0b1111  "b" in
+  (* AR1 AR2 AR3 *)
+  (* 110 - xor    al=1 *)
+  (* 001 - and    al=1 *)
+  (* 111 - or     al=1 *)
+  (* 011 - ld (b) al=1 *)
+  (* 011 - add    al=0 *)
+  (* 100 - sub    al=0 c=1 *)
+  (* 000 - st (a) al=0 *)
+  (* 010 - bcc (-a) al=1 c=1 *)
 
-  let sum_b = number_to_unit8 0x01 "b" in
 
-  (* let test = Ok [("carry", LS_0);
-                        ("a0", LS_0); 
-                        ("a1", LS_0);
-                        ("a2", LS_0);  
-                        ("a3", LS_0);                  
-                        ("b0", LS_1); 
-                        ("b1", LS_1);
-                        ("b2", LS_1);
-                        ("b3", LS_0) ] |> s74hc283.solve in
-  Printf.printf ">>> test result:\n%s\n" (resultToStr test);  *)
+  let sum1 = al ++ ar0 ++ l ++ h ++ h ++ sum_a.(0) ++ sum_a.(1) ++ sum_a.(2) ++ sum_a.(3) ++ 
+                       sum_a.(4) ++ sum_a.(5) ++ sum_a.(6) ++ sum_a.(7) ++ 
+                       sum_b.(0) ++ sum_b.(1) ++ sum_b.(2) ++ sum_b.(3) ++ 
+                       sum_b.(4) ++ sum_b.(5) ++ sum_b.(6) ++ sum_b.(7) |> sGigatronALU.solve in
 
-  let sum1 = (make_unit [carry0; sum_a.(0); sum_a.(1); sum_a.(2); sum_a.(3); 
-                                  sum_b.(0); sum_b.(1); sum_b.(2); sum_b.(3)] |> s74hc283.solve) in
-  (* Printf.printf ">>> sum0 result:\n%s\n" (resultToStr sum1);   *)
-  let _ = sum1 >>= fun s74hc283_out -> 
-    match s74hc283_out with
-      |s1::s2::s3::s4::carry1::sx -> 
-          let sum2 = (make_unit [Ok [carry1]; sum_a.(4); sum_a.(5); sum_a.(6); sum_a.(7); 
-                                                  sum_b.(4); sum_b.(5); sum_b.(6); sum_b.(7)] |> s74hc283.solve) in
-          sum2 >>= fun s74hc283_out2 -> 
-              begin match s74hc283_out2 with
-                |s5::s6::s7::s8::carry2::sx -> 
-                        Printf.printf ">>> result:\n%s\n" (resultToStr (Ok [s1; s2; s3; s4; s5; s6; s7; s8; carry2]));
-                        Ok []
-                | _ -> Ok []
-              end
+  Printf.printf ">>> result:\n%s\n" (resultToStr sum1);
+  Printf.printf ">>> test: 200 + 57 == %d <<< %s\n" (resultToNum sum1) (if (resultToNum sum1) == 200 + 57 then "PASS" else "FAIL") ;
 
-      | _ -> Ok []
-  in
   (* Printf.printf ">>> result:\n%s\n"  (resultToStr a) *)
   Printf.printf "bye.";
 
@@ -699,7 +744,7 @@ let () =
   "x"::"y"::"z"::[] |> insertLines tracks;
   showLines tracks; *)
   
-              (* let test = make_unit [ Ok (to_unit [("b0", LS_0)] +++ 
+              (* let test = make_unit [ Ok (to_unit [("b0", LS_0)] ++ 
                              to_unit [("b1", LS_1)] +++
                              to_unit [("b2", LS_1)] +++
                              to_unit [("b3", LS_0)] )] |> s74hc283.solve in *)
