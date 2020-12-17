@@ -1,0 +1,17 @@
+traces = [
+    'clk',
+    # prev port
+    ('op__sdir', 'in'),
+    ('p_data_i[7:0]', 'in'),
+    ('p_shift_i[7:0]', 'in'),
+    ('p_valid_i', 'in'),
+    ('p_ready_o', 'out'),
+    # internal signals
+    'fsm_state',
+    'count[3:0]',
+    'shift_reg[7:0]',
+    # next port
+    ('n_data_o[7:0]', 'out'),
+    ('n_valid_o', 'out'),
+    ('n_ready_i', 'in'),
+]

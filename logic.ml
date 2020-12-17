@@ -5,13 +5,12 @@ open Array;;
 
 type lineStateT = LS_1 | LS_0 | LS_X 
 
-type signal = (string * lineStateT)
-
 let l = ("L", LS_0)
 let h = ("H", LS_1)
 
-type unit = signal list
-type error = { desc: string;}
+
+type unit = (string * lineStateT) list
+type error = {desc: string;}
 
 type 'a linesResult = (('a, error) result) 
 
@@ -21,7 +20,7 @@ type mess =  SUnit of unit linesResult | MUnit of (unit linesResult list)
 
 type 'a solver = {
 
-  solve: 'a linesResult -> 'a linesResult (* type: result of (input * 'a, error) *)
+  solve: 'a linesResult -> 'a linesResult; (* type: result of (input * 'a, error) *)
 }
 
 
@@ -80,17 +79,16 @@ let resultToNum (out: unit linesResult) : int =
 
 
 
-let n2Unit (n : int) lab s : signal list = 
+let n2Unit (n : int) lab s : unit = 
 
-   let u : int32 = if n < 0 then Int32.add (Int32.lognot (Int32.of_int (-n))) Int32.one
+  let u : int32 = if n < 0 then Int32.add (Int32.lognot (Int32.of_int (-n))) Int32.one
     else (Int32.of_int n) 
   in (* (if n<0 then (lnot (-n) + 1) else n)  *)
 
-  let rec f = fun (n: int32) (lab: string) (acc: unit) (i:int) : signal list ->
+  let rec f = fun (n: int32) (lab: string) (acc: unit) (i:int) : unit ->
     if s > i then acc @ ((f (Int32.shift_right_logical n 1) lab ((Printf.sprintf"%s%d" lab i, if (Int32.logand n (Int32.of_int 0x01)) > Int32.zero then LS_1 else LS_0)::[])) (i + 1))
     else acc
   in
-
   f u lab [] 0
 
 
@@ -197,6 +195,7 @@ let sNeg : unit solver = {
       | [] -> Error {desc = "[sNeg] missing input\n"}
       | (_, LS_1)::xs -> Ok (("sNeg", LS_0)::xs)
       | _::xs -> Ok (("sNeg", LS_1)::xs)
+  
 } 
 
 (* Tri-state negator oe in *)
@@ -652,7 +651,6 @@ let sGigatronALU_test : unit linesResult =
   let bcc_ac  = n2Unit (-7) "ac" 8 in (*twos compl. -> NOT then +1 -> (-5) = 11111010 + 1 = 11111011 *)
   let bcc_bus = n2Unit 0b00000000 "bus" 8 in
 
-
   let _ = 
   Ok (instr_code_xor @ xor_ac @ xor_bus) |> sGigatronALU.solve >>= fun test_xor ->
     match test_unit test_xor (n2Unit 0b001100110 "exp_val" 9) with
@@ -699,11 +697,75 @@ let sGigatronALU_test : unit linesResult =
   match test_unit test_ld ((n2Unit (-10) "exp_val" 8) @ l::[])  with (* can't convert 9 bit as sign, by alu result 9 bit is used as carry *)
       |Ok m -> Printf.printf "sGigatronALU_test %s *ld* %s: PASS\n" (unitToStr2 ld_bus)  (unitToStr2 test_ld); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test %s *ld* %s: FAIL - %s\n" (unitToStr2 ld_bus) (unitToStr2 test_ld) e.desc; Error e 
+ 
+
+type stateT = {
+
+  tick: int;
+  units: unit linesResult
+}
 
 
-    
+let sMain : unit solver = {
+  solve = fun result' -> 
+    result' >>= fun unit' ->
+      match unit' with
+      | clk::en_clk::xs -> 
+      
+        sNor.solve (Ok [clk; en_clk]) >>= fun clk' ->
+
+        let xx = clk' @ xs
+        in
+        (* Printf.printf "xx:%s\n" (unitToStr2 xx);    *)
+        begin match xx with 
+        | (_, LS_0)::(_, a)::(_, b)::(_, c)::(_, d)::xs' -> 
+        
+          let (a', ca) = if a = LS_1 then (LS_0, LS_1) 
+                          else (LS_1, LS_0) 
+          in
+          let (b', ca) = if ca = LS_1 then (if b = LS_1 then (LS_0, LS_1) else (LS_1, LS_0))
+                          else (b , ca) 
+          in
+          let (c', ca) = if ca = LS_1 then (if c = LS_1 then (LS_0, LS_1) else (LS_1, LS_0))
+                          else (c , ca) 
+          in
+          let (d', ca) = if ca = LS_1 then (if d = LS_1 then (LS_0, LS_1) else (LS_1, LS_0))
+                          else (d , ca)                                                               
+          in
+          Ok (clk' @ en_clk::("a", a')::("b", b')::("c", c')::("d", d')::xs')
+        | (_, LS_1)::(_, a)::(_, b)::(_, c)::(_, d)::xs' -> Ok (clk' @ en_clk::("a", a)::("b", b)::("c", c)::("d", d)::xs')
+        | _ -> Error {desc="sMain.solver Err.No.: 2"}
+        end 
+      | _ -> Error {desc="sMain.solver Err.No.: 1"}
+}
+
+
+let rec test_loop (s: stateT) = 
+  (* Printf.printf ">>>...%d\n" s.tick; *)
+  sMain.solve s.units >>= fun res ->
+    Printf.printf ">>> %s\n" (unitToStr2 res);   
+    if s.tick > 0 then 
+
+      test_loop {tick = (s.tick - 1); units = Ok res}
+    else Ok []
+
+  
 let () = 
-  let al = ("al", LS_1) in (* 0:LS_1 lub akumulator:LS_0 *)
+
+  let _ = s74hc153_test in
+  let _ = make_unit_test in
+  let _ = sGigatronALU_test in
+
+  let _ = match test_loop {tick=32; units = Ok (h::l::l::l::l::l::l::[])} with
+        | Ok m -> ()
+        | Error e -> Printf.printf "test_loop FAIL - %s\n" e.desc; 
+  in
+  Printf.printf "Bye, bye."  (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
+
+
+
+
+  (* let al = ("al", LS_1) in (* 0:LS_1 lub akumulator:LS_0 *)
   let ar0 = ("cin", LS_1) in (* AR0, carry in *)
 
   let reg_a = n2Unit 0b11111111 "bus" 8 in
@@ -715,12 +777,7 @@ let () =
     Printf.printf ">>> result:\n%s\n" (unitToStr sum1);
     Printf.printf ">>> test: 200 + 57 == %d <<< %s\n" (unitToNum sum1) (if (unitToNum sum1) == 200 + 57 then "PASS" else "FAIL");
     Ok sum1 
-  in  
- let _ = s74hc153_test in
- let _ = make_unit_test in
- (* let _ = sGigatronALU_test in *)
- Printf.printf "bye."  (*  (unitToStr (n2Unit 0xaa "lab" 20)); *)
-
+  in  *)
 
   (* let tracks : lineMapT ref = ref ListMap.empty in
   let units : unitMapT ref = ref ListMap.empty in
