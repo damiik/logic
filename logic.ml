@@ -573,17 +573,17 @@ let s74hc153 : unit solver = {
 
 let s74hc153_test : unit linesResult = 
 
-  let in_a = n2Unit 0b0011 "a." 4 in
-  let in_b = n2Unit 0b0110 "b." 4 in
+  let a = n2Unit 0b0011 "a." 4 in
+  let b = n2Unit 0b0110 "b." 4 in
   let ea_eb = n2Unit 0b00 "ea_eb." 2 in
 
   let res = 
-  [ea_eb ++ ("addr.", l @ l) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test01 ->
-  [ea_eb ++ ("addr.", h @ l) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test02 ->
-  [ea_eb ++ ("addr.", l @ h) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test03 ->
-  [ea_eb ++ ("addr.", h @ h) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test04 ->
-Printf.printf "s74hc153_test: %s -> %s\n" (unitToStr2  test01 ) (unitToStr2 (ea_eb ++ ("addr.", l @ l) ++ in_a ++ in_b));
-  test_unit (test04 ++ test03 ++ test02 ++ test01) (n2Unit 0b00101101 "exp_val" 8)
+  [ea_eb ++ ("adr1.", l @ l) ++ a ++ b] |> s74hc153.solve >>= fun test01 ->
+  [ea_eb ++ ("adr2.", h @ l) ++ a ++ b] |> s74hc153.solve >>= fun test02 ->
+  [ea_eb ++ ("adr3.", l @ h) ++ a ++ b] |> s74hc153.solve >>= fun test03 ->
+  [ea_eb ++ ("adr4.", h @ h) ++ a ++ b] |> s74hc153.solve >>= fun test04 ->
+Printf.printf "s74hc153_test: %s -> %s\n" (unitToStr2  (n2Unit 0b00011110 "exp_val" 8) ) (unitToStr2  (test01 ++ test02 ++ test03 ++ test04));
+  test_unit (test01 ++ test02 ++ test03 ++ test04) (n2Unit 0b00011110 "exp_val" 8) (* a3 b3 a2 b2 a1 b1 a0 b0 *)
   in
   match res with
       |Ok m -> Printf.printf "s74hc153_test: PASS\n"; Ok m
@@ -600,16 +600,16 @@ let s74hc283 : unit solver = {
           | [(lab, [])] -> Error { desc = "[s74hc283] missing input\n" }
           | [(lab, cin::a1::a2::a3::a4::b1::b2::b3::b4::xs)] -> 
 
-              [("cin", [cin])] |> sNeg.solve >>= fun cin_neg ->  
+              [("cin.", [cin])] |> sNeg.solve >>= fun cin_neg ->  
 
-              [("na20", [a1; b1])] |> sNand.solve >>= fun nand20 ->
-              [("no20", [a1; b1])] |> sNor.solve >>= fun nor20 ->
-              [("na21", [a2; b2])] |> sNand.solve >>= fun nand21 ->
-              [("no21", [a2; b2])] |> sNor.solve >>= fun nor21 ->
-              [("na22", [a3; b3])] |> sNand.solve >>= fun nand22 ->
-              [("no22", [a3; b3])] |> sNor.solve >>= fun nor22 -> 
-              [("na23", [a4; b4])] |> sNand.solve >>= fun nand23 ->
-              [("no23", [a4; b4])] |> sNor.solve >>= fun nor23 -> 
+              [("na20.", [a1; b1])] |> sNand.solve >>= fun nand20 ->
+              [("no20.", [a1; b1])] |> sNor.solve >>= fun nor20 ->
+              [("na21.", [a2; b2])] |> sNand.solve >>= fun nand21 ->
+              [("no21.", [a2; b2])] |> sNor.solve >>= fun nor21 ->
+              [("na22.", [a3; b3])] |> sNand.solve >>= fun nand22 ->
+              [("no22.", [a3; b3])] |> sNor.solve >>= fun nor22 -> 
+              [("na23.", [a4; b4])] |> sNand.solve >>= fun nand23 ->
+              [("no23.", [a4; b4])] |> sNor.solve >>= fun nor23 -> 
 
               [nor20] |> sNeg.solve >>= fun nor20n ->
               [nor21] |> sNeg.solve >>= fun nor21n ->
@@ -637,7 +637,7 @@ let s74hc283 : unit solver = {
 
               [iand202122 ++ and32122nor20 ++ and22nor21 ++ nor22] |> sNor4.solve >>= fun nor41 ->
 
-              [("cin", [cin]) ++ and2020] |> sXor.solve >>= fun sum1 ->
+              [("cin.", [cin]) ++ and2020] |> sXor.solve >>= fun sum1 ->
               [nor20in20 ++ and2121] |> sXor.solve >>= fun sum2 ->
               [nor32021 ++ and2222] |> sXor.solve >>= fun sum3 ->
               [nor41 ++ and2323] |> sXor.solve >>= fun sum4 ->
@@ -651,6 +651,24 @@ let s74hc283 : unit solver = {
           | _ -> Error { desc = "s74hc283 FAIL missing unit input\n" } ;
           end
 }
+
+
+let s74hc283_test : unit linesResult = 
+
+  let a = n2Unit 0b0011 "a." 4 in
+  let b = n2Unit 0b0110 "b." 4 in
+
+  let res = 
+  [("carry.", l) ++ a ++ b] |> s74hc283.solve >>= fun test01 ->
+  [("carry.", h) ++ a ++ b] |> s74hc283.solve >>= fun test02 ->
+  [("carry.", l) ++ b ++ a] |> s74hc283.solve >>= fun test03 ->
+  [("carry.", h) ++ b ++ a] |> s74hc283.solve >>= fun test04 ->
+Printf.printf "s74hc283_test: %s -> %s\n" (unitToStr2  (n2Unit 0b00011110 "exp_val" 8) ) (unitToStr2 (test01 ++ test02 ++ test03 ++ test04));
+  test_unit (test01 ++ test02 ++ test03 ++ test04) (n2Unit 0b11001010011100101001 "exp_val" 20) (* a3 b3 a2 b2 a1 b1 a0 b0 *)
+  in
+  match res with
+      |Ok m -> Printf.printf "s74hc283_test: PASS\n"; Ok m
+      |Error e ->  Printf.printf "s74hc283_test: FAIL - %s\n" e.desc; Error e
 
 
 (* 2x 74hc283 sumator simulation *)
@@ -751,6 +769,7 @@ let sGigatronALU_test : unit linesResult =
 
   let _ = 
   [ instr_code_xor ++ xor_ac ++ xor_bus] |> sGigatronALU.solve >>= fun test_xor ->
+   Printf.printf "test_xor %s\n"  (unitToStr2 test_xor);
     match test_unit test_xor (n2Unit 0b001100110 "exp_val" 9) with
         |Ok m -> Printf.printf "sGigatronALU_test *xor* %s: PASS\n" (unitToStr2 test_xor); Ok m
         |Error e ->  Printf.printf "sGigatronALU_test *xor* %s: FAIL - %s\n" (unitToStr2 test_xor) e.desc; Error e
@@ -858,8 +877,11 @@ let () =
         | Ok m -> ()
         | Error e -> Printf.printf "test_loop FAIL - %s\n" e.desc; 
   in
-  Printf.printf "Bye, bye."  (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
-
+  Printf.printf "Bye, bye." ; (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
+  Printf.printf "%s" (unitToStr2 ((n2Unit 0b0011 "a." 4) ++ (n2Unit 0b0110 "b." 4 )));
+  Printf.printf "%s" (unitToStr2 (("Man", l@h@h@l@l@l@h@h)));
+  Printf.printf "%s" (unitToStr2 (("List", LS_0::LS_1::LS_1::LS_0::LS_0::LS_0::LS_1::LS_1::[])));
+  Printf.printf "%s" (unitToStr2 (n2Unit 0b01100011 "b." 8))
 
 
 
