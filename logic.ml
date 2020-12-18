@@ -582,8 +582,8 @@ let s74hc153_test : unit linesResult =
   [ea_eb ++ ("addr.", h @ l) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test02 ->
   [ea_eb ++ ("addr.", l @ h) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test03 ->
   [ea_eb ++ ("addr.", h @ h) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test04 ->
-(* Printf.printf "s74hc153_test: %s -> %s\n" (unitToStr2  test01 ) (unitToStr2 (ea_eb ++ ("addr.", l @ l) ++ in_a ++ in_b)); *)
-  test_unit (test01 ++ test02 ++ test03 ++ test04) (n2Unit 0b00101101 "exp_val" 8)
+Printf.printf "s74hc153_test: %s -> %s\n" (unitToStr2  test01 ) (unitToStr2 (ea_eb ++ ("addr.", l @ l) ++ in_a ++ in_b));
+  test_unit (test04 ++ test03 ++ test02 ++ test01) (n2Unit 0b00101101 "exp_val" 8)
   in
   match res with
       |Ok m -> Printf.printf "s74hc153_test: PASS\n"; Ok m
