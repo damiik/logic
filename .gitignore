@@ -1,4 +1,4 @@
-logic.bytes
-logic.cmi
-logic.cmo
+./*.bytes
+./*.cmi
+./*.cmo
 

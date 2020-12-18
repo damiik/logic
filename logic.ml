@@ -5,49 +5,74 @@ open Array;;
 
 type lineStateT = LS_1 | LS_0 | LS_X 
 
-let l = ("L", LS_0)
-let h = ("H", LS_1)
+let l = [LS_0]
+let h = [LS_1]
 
-
-type unit = (string * lineStateT) list
+type unit =  (string * (lineStateT list))
 type error = {desc: string;}
 
 type 'a linesResult = (('a, error) result) 
+
 
 (* type mess = SUnit of signal list | MUnit of ((unit, error) result) list *)
 type mess =  SUnit of unit linesResult | MUnit of (unit linesResult list) 
 (* | (unit linesResult)  list) *)
 
+
 type 'a solver = {
 
-  solve: 'a linesResult -> 'a linesResult; (* type: result of (input * 'a, error) *)
+  solve: 'a list -> 'a linesResult; (* type: result of (input * 'a, error) *)
 }
 
 
 let unitToStr (out: unit) : string =
 
-    let rec f = fun l i ->
-      match l with 
-      | [] -> ""
-      | (s, LS_1)::xs -> Printf.sprintf "%s [ %s ]%d: <1>\n" (f xs (i+1)) s i;
-      | (s, LS_0)::xs -> Printf.sprintf "%s [ %s ]%d: <0>\n" (f xs (i+1)) s i;
-      | (s, LS_X)::xs -> Printf.sprintf "%s [ %s ]%d: <*>\n" (f xs (i+1)) s i;
+  let rec f = fun l i ->
+    match l with
+    | [] -> ""
+    | LS_1::xs -> Printf.sprintf "%d:<1>, %s" i (f xs (i+1));
+    | LS_0::xs -> Printf.sprintf "%d:<0>, %s" i (f xs (i+1));
+    | LS_X::xs -> Printf.sprintf "%d:<*>, %s" i (f xs (i+1));
+  in
+  match out with
+  | (lab, signals) -> Printf.sprintf "%s [ %s ]\n" lab (f signals 0)
 
-    in
-    f out 0 (* ((List.length out) - 1) *)
+
+(* let unitToStr (out: unit) : string =
+
+  let rec f = fun l ->
+    match l with 
+    | [] -> ""
+    | (lab, s)::xs -> Printf.sprintf "%s [ %s ]\n%s" lab (signalsToStr s) (f xs);
+  in
+  f out *)
+
 
 (* short ver. *)
 let unitToStr2 (out: unit) : string =
 
-    let rec f = fun l i ->
-      match l with 
-      | [] -> ""
-      | (_, LS_1)::xs -> Printf.sprintf "%s1" (f xs (i+1));
-      | (_, LS_0)::xs -> Printf.sprintf "%s0" (f xs (i+1));
-      | (_, LS_X)::xs -> Printf.sprintf "%s*" (f xs (i+1));
+  let rec f = fun l ->
+    match l with
+    | [] -> ""
+    | LS_1::xs -> Printf.sprintf "1%s" (f xs);
+    | LS_0::xs -> Printf.sprintf "0%s" (f xs);
+    | LS_X::xs -> Printf.sprintf "*%s" (f xs);
+  in
+  match out with
+  | (lab, signals) -> Printf.sprintf "%s [ %s ]" lab (f signals)
 
-    in
-    f out 0 
+
+
+(* short ver. *)
+(* let unitToStr2 (out: unit) : string =
+
+  let rec f = fun l ->
+    match l with 
+    | [] -> ""
+    | (lab, s)::xs -> Printf.sprintf "%s: %s, %s" lab (signalsToStr2 s) (f xs);
+  in
+  f out *)
+
 
 let resultToStr (out: unit linesResult) : string =
 
@@ -55,11 +80,12 @@ let resultToStr (out: unit linesResult) : string =
   | Error error -> error.desc
   | Ok o -> unitToStr o
 
+
 let rec pow(x, n) =
     if n=0 then 1 else x * pow(x, n-1)
 
 
-let unitToNum (out: unit) : int =
+(* let unitToNum (out: unit) : int =
 
     let rec f = fun l i acc ->
       match l with 
@@ -69,14 +95,15 @@ let unitToNum (out: unit) : int =
       | (s, LS_X)::xs ->  (f xs (i+1) acc)
 
     in
-    (f out 0 0) (* ((List.length out) - 1) *)
+    (f out 0 0)  *)
+    (* ((List.length out) - 1) *)
 
+(* 
 let resultToNum (out: unit linesResult) : int =
 
   match out with
   | Error error -> -1
-  | Ok o -> unitToNum o
-
+  | Ok o -> unitToNum o *)
 
 
 let n2Unit (n : int) lab s : unit = 
@@ -85,13 +112,17 @@ let n2Unit (n : int) lab s : unit =
     else (Int32.of_int n) 
   in (* (if n<0 then (lnot (-n) + 1) else n)  *)
 
-  let rec f = fun (n: int32) (lab: string) (acc: unit) (i:int) : unit ->
-    if s > i then acc @ ((f (Int32.shift_right_logical n 1) lab ((Printf.sprintf"%s%d" lab i, if (Int32.logand n (Int32.of_int 0x01)) > Int32.zero then LS_1 else LS_0)::[])) (i + 1))
+  let rec f = fun (n: int32) (acc: lineStateT list) (i:int) : lineStateT list ->
+    if s > i then (
+                      (f (Int32.shift_right_logical n 1) 
+                          ((if (Int32.logand n (Int32.of_int 0x01)) > Int32.zero then LS_1 else LS_0)::[]) 
+                          (i + 1)
+                      ) @ acc
+                  )
+                  
     else acc
   in
-  f u lab [] 0
-
-
+  (lab, (f u [] 0))
 
 
 let ( >>= )  (p: 'a linesResult) (f: 'a -> 'b linesResult)  : 'b linesResult =
@@ -102,14 +133,23 @@ let ( >>= )  (p: 'a linesResult) (f: 'a -> 'b linesResult)  : 'b linesResult =
 
 
 (* monoid ++ *)
-let (++) (u1: unit linesResult ) (u2: unit linesResult) : unit linesResult =
+let ( ++ ) (u1: unit ) (u2: unit) : unit =
 
-  u1 >>= fun u1' -> u2 >>= fun u2' -> Ok ( u1' @  u2')
+    match (u1, u2) with
+    | ((lab1, u1signals), (lab2, u2signals)) -> ((lab1 ^ lab2), u1signals @ u2signals)
+
+
+(* let ( ++ ) (u1: unit linesResult ) (u2: unit linesResult) : unit linesResult =
+
+  u1 >>= fun u1' -> u2 >>= fun u2' -> 
+  
+    match (u1', u2') with
+    | ((lab1, u1signals), (lab2, u2signals)) -> Ok ((lab1 ^ lab2), u1signals @ u2signals) *)
   
 
 (*  (us: unit solver) *)
 
-let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult = 
+(* let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult = 
 
   let rec f  (l: (unit linesResult) list)  : unit linesResult = 
       (* let x::xs = u in Printf.printf "solve_unit:%s" (resultToStr u); *)
@@ -120,7 +160,7 @@ let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult
   let result = ref []
   in
   (f lr) >>= fun u -> result := u ;
-  us.solve (Ok !result)
+  us.solve (Ok !result) *)
 
 (* 
 let rec compare_unit (p1: unit) (p2: unit) : (string, string) result = 
@@ -140,45 +180,62 @@ let rec compare_unit (p1: unit) (p2: unit) : (string, string) result =
                     end *)
                  
 (* compare without labels *)
-let rec test_unit (p1: unit) (p2: unit) : unit linesResult = 
-      match p1 with
-      | [] -> begin match p2 with       
-                    | [] -> Ok []
-                    |(x2::x2s) -> Error {desc = "first unit too short"}
-                    end
-      |(x1::x1s) -> begin match p2 with
-                          | [] -> Error {desc = "second unit too short"}
-                          |(x2::x2s) -> 
-                            let (l_x1, r_x1) = x1 in
-                            let (l_x2, r_x2) = x2 in
-                            if r_x1 != r_x2 then Error {desc = Printf.sprintf "signal levels not equal [%s] <> [%s]" l_x1 l_x2}
-                            else
-                            (* if (compare l_x1 l_x2) != 0 then Error {desc = Printf.sprintf "labes not equal [%s] <> [%s]" l_x1 l_x2} *)
-                            test_unit x1s x2s
-                    end
-                 
+let test_unit (p1: unit) (p2: unit) : unit linesResult = 
+
+  match (p1, p2) with
+    | ((lab1, u1signals), (lab2, u2signals)) -> 
+  
+
+    let rec f (l1: lineStateT list) (l2: lineStateT list) : unit linesResult = 
+          match l1 with
+          | [] -> begin match l2 with       
+                        | [] -> Ok (lab1^lab2, [])
+                        | x2::x2s -> Error {desc = Printf.sprintf "unit %s too short compared to %s" lab1 lab2}
+                        end
+          | x1::x1s -> begin match l2 with
+                              | [] -> Error {desc = "second unit too short"}
+                              | x2::x2s -> 
+
+                                if x1 != x2 then Error {desc = Printf.sprintf "signal levels not equal [%s] <> [%s]" lab1 lab2}
+                                else
+                                (* if (compare l_x1 l_x2) != 0 then Error {desc = Printf.sprintf "labes not equal [%s] <> [%s]" l_x1 l_x2} *)
+                                f x1s x2s
+                        end
+    in
+    f u1signals u2signals
+         
 
 let rec make_unit (inp : unit linesResult list): unit linesResult =
 
   let rec f (acc : unit linesResult)  (m : unit linesResult list): unit linesResult  = 
     match m with
     | [] -> acc            
-    | x::[] ->   x >>= fun u -> acc >>= fun acc' -> (Ok (acc' @ u))
-    | (x::xs) -> x >>= fun u -> acc >>= fun acc' -> (f (Ok (acc' @ u)) xs)
+    | x::[] -> x >>= fun u -> 
+             acc >>= fun acc' -> begin match (u, acc') with
+                                        | ((lab1, u1signals), (lab2, u2signals)) -> (Ok (lab1^lab2, u2signals @ u1signals))
+                                   end
+    | (x::xs) -> x >>= fun u -> 
+               acc >>= fun acc' -> begin match (u, acc') with
+               | ((lab1, u1signals), (lab2, u2signals)) -> (f (Ok (lab1^lab2,  u2signals @ u1signals)) xs)
+               end
   in
-  f (Ok []) inp
+  f (Ok ("",[])) inp
 
 let make_unit_test : unit linesResult = 
 
-  let base_signals_a = n2Unit 0b1010 "a" 4 in
-  let base_signals_b = n2Unit 0b1111 "b" 4 in
+  (* let base_signals_a = n2Unit 0b1010 "a" 4 in
+  let base_signals_b = n2Unit 0b1111 "b" 4 in *)
 
   (* prepare input list of results of signals *)
-  let function_input_signals = List.map (fun e -> Ok [e]) ((n2Unit 0b1010 "a" 4 ) @ (n2Unit 0b1111 "b" 4)) in
+  (* let function_input_signals = List.map (fun e -> Ok [e]) ((n2Unit 0b1010 "a" 4 ) @ (n2Unit 0b1111 "b" 4)) in *)
+
+  let function_input_signals = [Ok (n2Unit 0b1010 "a" 4 ); Ok (n2Unit 0b1111 "b" 4)] in 
 
   (* test make_unit *)
   let res = make_unit function_input_signals >>= fun created_unit ->
-                  test_unit (base_signals_a @ base_signals_b) created_unit
+                  (* test_unit (base_signals_a @ base_signals_b) created_unit *)
+                  Printf.printf "make_unit_test: %s -> %s\n" (unitToStr2 (n2Unit 0b10101111 "a+b" 8)) (unitToStr2 created_unit);
+                  test_unit (n2Unit 0b10101111 "a+b" 8) created_unit
                   in
                   match res with
                       |Ok m -> Printf.printf "make_unit_test: PASS\n"; Ok m
@@ -190,11 +247,12 @@ let make_unit_test : unit linesResult =
 let sNeg : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | [] -> Error {desc = "[sNeg] missing input\n"}
-      | (_, LS_1)::xs -> Ok (("sNeg", LS_0)::xs)
-      | _::xs -> Ok (("sNeg", LS_1)::xs)
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNeg FAIL - %s missing input\n" lab)}
+      | [(lab, LS_1::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, _::xs)] -> Ok (lab, LS_1::xs)
+      | _ -> Error {desc = "sNeg FAIL - missing input unit\n"}
   
 } 
 
@@ -202,241 +260,279 @@ let sNeg : unit solver = {
 let sTneg : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | [] -> Error {desc = "[tneg_out] missing input\n"}
-      | _::[] -> Error {desc = "[tneg_out] missing input\n"}
-      | (_, LS_1)::(_, LS_1)::xs -> Ok (("tneg_out", LS_0)::xs)
-      | (_, LS_1)::(_, LS_0)::xs -> Ok (("tneg_out", LS_1)::xs)
-      | _::_::xs -> Ok (("tneg_out", LS_X)::xs)
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sTneg FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sTneg FAIL - %s missing 1 input\n" lab)}
+      | [(lab, LS_1::LS_1::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, LS_1::LS_0::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_X::xs)
+      | _ -> Error {desc = "sTneg FAIL - missing input unit\n"}
 } 
 
 let sBuf : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | [] -> Error {desc = "[sBuf] missing input\n"} 
-      | (_, b)::xs -> Ok (("sBuf", b)::xs)
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sBuf FAIL - %s missing input\n" lab)}
+      | [(lab, b::xs)] ->  Ok (lab, b::xs)
+      | _ -> Error {desc = "sBuf FAIL - missing input unit\n"}
 } 
 
 (* Tri-state bufor inputs: oe in *)
 let sTbuf : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | [] -> Error {desc = "[tbuf_out] missing input\n"}
-      | _::[] -> Error {desc = "[tbuf_out] missing input\n"}
-      | (_, LS_1)::(_, LS_0)::xs -> Ok (("tbuf_out", LS_0)::xs)
-      | (_, LS_1)::(_, LS_1)::xs -> Ok (("tbuf_out", LS_1)::xs)
-      | _::_::xs -> Ok (("tbuf_out", LS_X)::xs)
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sTbuf FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sTbuf FAIL - %s missing 1 input\n" lab)}
+      | [(lab, LS_1::LS_0::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, LS_1::LS_1::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_X::xs)
+      | _ -> Error {desc = "sTbuf FAIL - missing input unit\n"}
 } 
 
 let sAnd : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_1)::(_, LS_1)::xs -> Ok (("sAnd", LS_1)::xs) 
-      | _::_::xs -> Ok (("sAnd", LS_0)::xs) 
-      | _ -> Error {desc = "[sAnd] missing input\n"}  
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_1::LS_1::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sAnd FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sAnd FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sAnd FAIL - missing input unit\n"}
 } 
 
 let sAnd3 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_1)::(_, LS_1)::(_, LS_1)::xs -> Ok (("sAnd3", LS_1)::xs) 
-      | _::_::_::xs -> Ok (("sAnd3", LS_0)::xs) 
-      | _ -> Error {desc = "[sAnd3] missing input\n"}  
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_1::LS_1::LS_1::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sAnd3 FAIL - %s missing 3 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sAnd3 FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::y::[])] -> Error {desc = (Printf.sprintf "sAnd3 FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sAnd3 FAIL - missing input unit\n"}
 } 
 
 let sAnd4 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_1)::(_, LS_1)::(_, LS_1)::(_, LS_1)::xs -> Ok (("sAnd4", LS_1)::xs) 
-      | _::_::_::_::xs -> Ok (("sAnd4", LS_0)::xs) 
-      | _ -> Error {desc = "[sAnd4] missing input\n"}  
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_1::LS_1::LS_1::LS_1::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sAnd4 FAIL - %s missing 4 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sAnd4 FAIL - %s missing 3 inputs\n" lab)}
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sAnd4 FAIL - %s missing 2 input\n" lab)}
+      | [(lab, _::_::_::[])] -> Error {desc = (Printf.sprintf "sAnd4 FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sAnd4 FAIL - missing input unit\n"}
 } 
+
 
 let sAnd5 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_1)::(_, LS_1)::(_, LS_1)::(_, LS_1)::(_, LS_1)::xs -> Ok (("sAnd5", LS_1)::xs) 
-      | _::_::_::_::_::xs -> Ok (("sAnd5", LS_0)::xs) 
-      | _ -> Error {desc = "[sAnd5] missing input\n"}  
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_1::LS_1::LS_1::LS_1::LS_1::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sAnd5 FAIL - %s missing 5 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sAnd5 FAIL - %s missing 4 inputs\n" lab)}
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sAnd5 FAIL - %s missing 3 input\n" lab)}
+      | [(lab, _::_::_::[])] -> Error {desc = (Printf.sprintf "sAnd5 FAIL - %s missing 2 input\n" lab)}
+      | [(lab, _::_::_::_::[])] -> Error {desc = (Printf.sprintf "sAnd5 FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sAnd5 FAIL - missing input unit\n"}
 } 
-
 
 
 let sNand : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_1)::(_, LS_1)::xs -> Ok (("sNand", LS_0)::xs) 
-      | _::_::xs -> Ok (("sNand", LS_1)::xs) 
-      | _ -> Error {desc = "[sNand] missing input\n"}  
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_1::LS_1::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNand FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sNand FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sNand FAIL - missing input unit\n"}
 } 
-
-
 
 
 let sOr : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_0)::(n2, LS_0)::xs -> Ok (("sOr", LS_0)::xs)
-      | _::_::xs -> Ok (("sOr", LS_1)::xs)
-      | _ -> Error {desc = "[sOr] missing 2 inputs"}   
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_0::LS_0::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sOr FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sOr FAIL - %s missing 1 input\n" lab)} 
+      | _ -> Error {desc = "sOr FAIL - missing input unit\n"}
 }  
+
+let sOr4 : unit solver = {
+
+  solve = fun result' -> 
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_0::LS_0::LS_0::LS_0::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, _::_::_::_::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sOr4 FAIL - %s missing 4 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sOr4 FAIL - %s missing 3 inputs\n" lab)} 
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sOr4 FAIL - %s missing 2 inputs\n" lab)} 
+      | [(lab, _::_::_::[])] -> Error {desc = (Printf.sprintf "sOr4 FAIL - %s missing 1 input\n" lab)} 
+      | _ -> Error {desc = "sOr4 FAIL - missing input unit\n"}
+}   
+
 
 let sXor : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_0)::(n2, LS_0)::xs -> Ok (("sOr", LS_0)::xs)
-      | (_, LS_1)::(n2, LS_1)::xs -> Ok (("sOr", LS_0)::xs)
-      | _::_::xs -> Ok (("sOr", LS_1)::xs)
-      | _ -> Error {desc = "[sOr] missing 2 inputs"}   
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_0::LS_0::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, LS_1::LS_1::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sXor FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sXor FAIL - %s missing 1 input\n" lab)} 
+      | _ -> Error {desc = "sXor FAIL - missing input unit\n"}
 }  
+
 
 let sNor : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-        | (_, LS_0)::(_, LS_0)::xs -> Ok (("sNor", LS_1)::xs)
-        | _::_::xs -> Ok (("sNor", LS_0)::xs)
-        | _ -> Error {desc = "[sNor] missing input\n"} 
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_0::LS_0::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNor FAIL - %s missing 2 inputs\n" lab)}
+      | [(lab, x::[])] -> Error {desc = (Printf.sprintf "sNor FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sNor FAIL - missing input unit\n"} 
 }   
+
 
 let sNor3 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> Ok (("sNor3", LS_1)::xs)
-      | _::_::_::xs -> Ok (("sNor3", LS_0)::xs)
-      | _ -> Error {desc = "[sNor3] missing input\n"} 
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_0::LS_0::LS_0::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNor3 FAIL - %s missing 3 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sNor3 FAIL - %s missing 2 inputs\n" lab)} 
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sNor3 FAIL - %s missing 1 input\n" lab)} 
+      | _ -> Error {desc = "sNor3 FAIL - missing input unit\n"}
 }   
 
 
 let sNor4 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> Ok (("sNor4", LS_1)::xs)
-      | _::_::_::_::xs -> Ok (("sNor4", LS_0)::xs)
-      | _ -> Error {desc = "[sNor4] missing input\n"} 
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, LS_0::LS_0::LS_0::LS_0::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNor4 FAIL - %s missing 4 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sNor4 FAIL - %s missing 3 inputs\n" lab)} 
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sNor4 FAIL - %s missing 2 inputs\n" lab)} 
+      | [(lab, _::_::_::[])] -> Error {desc = (Printf.sprintf "sNor4 FAIL - %s missing 1 input\n" lab)} 
+      | _ -> Error {desc = "sNor4 FAIL - missing input unit\n"}
 }   
 
 
 let sNor5 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-          match unit' with
-          | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> Ok (("sNor5", LS_1)::xs)
-          | _::_::_::_::_::xs -> Ok (("sNor5", LS_0)::xs)
-          | _ -> Error {desc = "[sNor5] missing input\n"} 
+    (* result' >>= fun unit' -> *)
+          match result' with
+      | [(lab, LS_0::LS_0::LS_0::LS_0::LS_0::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNor5 FAIL - %s missing 5 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sNor5 FAIL - %s missing 4 inputs\n" lab)} 
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sNor5 FAIL - %s missing 3 inputs\n" lab)} 
+      | [(lab, _::_::_::[])] -> Error {desc = (Printf.sprintf "sNor5 FAIL - %s missing 2 inputs\n" lab)} 
+      | [(lab, _::_::_::_::[])] -> Error {desc = (Printf.sprintf "sNor5 FAIL - %s missing 1 input\n" lab)}
+      | _ -> Error {desc = "sNor5 FAIL - missing input unit\n"} 
 }   
 
 
 let sNor8 : unit solver = {
 
   solve = fun result' -> 
-      result' >>= fun unit' ->
-          match unit' with
-        | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> Ok (("sNor8", LS_1)::xs)
-        | _::_::_::_::_::_::_::_::xs -> Ok (("sNor8", LS_0)::xs)
-        | _ -> Error {desc = "[sNor8] missing input\n"} 
+      (* result' >>= fun unit' -> *)
+          match result' with
+      | [(lab, LS_0::LS_0::LS_0::LS_0::LS_0::LS_0::LS_0::LS_0::xs)] -> Ok (lab, LS_1::xs)
+      | [(lab, _::_::_::_::_::_::_::_::xs)] -> Ok (lab, LS_0::xs)
+      | [(lab, [])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 8 inputs\n" lab)}
+      | [(lab, _::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 7 inputs\n" lab)} 
+      | [(lab, _::_::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 6 inputs\n" lab)} 
+      | [(lab, _::_::_::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 5 inputs\n" lab)} 
+      | [(lab, _::_::_::_::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 4 inputs\n" lab)} 
+      | [(lab, _::_::_::_::_::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 3 inputs\n" lab)} 
+      | [(lab, _::_::_::_::_::_::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 2 inputs\n" lab)} 
+      | [(lab, _::_::_::_::_::_::_::[])] -> Error {desc = (Printf.sprintf "sNor8 FAIL - %s missing 1 input\n" lab)} 
+      | _ -> Error {desc = "sNor8 FAIL - missing input unit\n"}
 }   
 
-let sOr4 : unit solver = {
-
-  solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | (_, LS_0)::(_, LS_0)::(_, LS_0)::(_, LS_0)::xs -> Ok (("sNor4", LS_0)::xs)
-      | _::_::_::_::xs -> Ok (("sNor4", LS_1)::xs)
-      | _ -> Error {desc = "[sNor4] missing input\n"} 
-}   
 
 
 (* 74hc251 multiplexer simulation *)
 let s74hc251 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | [] -> Error { desc = "[s74hc251] missing input\n" } ;
-      | (oe'::s0'::s1'::s2'::in0::in1::in2::in3::in4::in5::in6::in7::xs) -> 
-          let oe = Ok [oe'] in
-          let s0 = Ok [s0'] in
-          let s1 = Ok [s1'] in
-          let s2 = Ok [s2'] in
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, [])] -> Error { desc = "[s74hc251] missing input\n" } ;
+      | [(lab, oe'::s0'::s1'::s2'::in0::in1::in2::in3::in4::in5::in6::in7::xs)] -> 
+          let oe = ("oe.", [oe']) in
+          let s0 = ("s0.", [s0']) in
+          let s1 = ("s1.", [s1']) in
+          let s2 = ("s2.", [s2']) in
 
-          let in_oe_neg = sNeg.solve oe in
-          let in_s0_neg = sNeg.solve s0 in
-          let in_s1_neg = sNeg.solve s1 in
-          let in_s2_neg = sNeg.solve s2 in
+          sNeg.solve [oe] >>= fun in_oe_neg ->
+          sNeg.solve [s0] >>= fun in_s0_neg ->
+          sNeg.solve [s1] >>= fun in_s1_neg ->
+          sNeg.solve [s2] >>= fun in_s2_neg ->
 
-          let in_x = [| 
-              Ok [in0]; 
-              Ok [in1]; 
-              Ok [in2]; 
-              Ok [in3]; 
-              Ok [in4]; 
-              Ok [in5]; 
-              Ok [in6]; 
-              Ok [in7] |] in
+          sBuf.solve [("in0.", [in0])] >>= fun buf_out_0 -> 
+          sBuf.solve [("in1.", [in1])] >>= fun buf_out_1 -> 
+          sBuf.solve [("in2.", [in2])] >>= fun buf_out_2 -> 
+          sBuf.solve [("in3.", [in3])] >>= fun buf_out_3 -> 
+          sBuf.solve [("in4.", [in4])] >>= fun buf_out_4 -> 
+          sBuf.solve [("in5.", [in5])] >>= fun buf_out_5 -> 
+          sBuf.solve [("in6.", [in6])] >>= fun buf_out_6 -> 
+          sBuf.solve [("in7.", [in7])] >>= fun buf_out_7 -> 
 
-          (* let in_x = Array.make 8 (Ok [("in", LS_0)]) in *)
-          (* Array.iteri (fun x _ -> in_x.(x) <- Ok [(Printf.sprintf "in%d" x, LS_0)]) in_x; *)
-          (* in_x.(1) <- Ok [(Printf.sprintf "in%d" 1, LS_0)]; *)
-          
-          (* Array.iteri (fun i e -> Printf.printf "in_%d:%s" i (unitToStr e)) in_x; *)
+          [buf_out_0 ++ in_s2_neg ++ in_s1_neg ++ in_s0_neg] |> sAnd4.solve >>= fun and4_out_0 ->
+          [buf_out_1 ++ in_s2_neg ++ in_s1_neg ++ s0] |> sAnd4.solve >>= fun and4_out_1 ->
+          [buf_out_2 ++ in_s2_neg ++ s1 ++ in_s0_neg] |> sAnd4.solve >>= fun and4_out_2 ->
+          [buf_out_3 ++ in_s2_neg ++ s1 ++ s0] |> sAnd4.solve >>= fun and4_out_3 ->
+          [buf_out_4 ++ s2 ++ in_s1_neg ++ in_s0_neg] |> sAnd4.solve >>= fun and4_out_4 ->
+          [buf_out_5 ++ s2 ++ in_s1_neg ++ s0] |> sAnd4.solve >>= fun and4_out_5 ->
+          [buf_out_6 ++ s2 ++ s1 ++ in_s0_neg] |> sAnd4.solve >>= fun and4_out_6 ->
+          [buf_out_7 ++ s2 ++ s1 ++ s0] |> sAnd4.solve >>= fun and4_out_7 ->
 
-          let buf_out = Array.make 8 (Ok [("buf_out", LS_0)]) in
-          Array.iteri (fun x _ -> (buf_out.(x) <- sBuf.solve in_x.(x))) buf_out;
-
-          let and4_out = Array.make 8 (Ok [("and4_out", LS_0)]) in
-          and4_out.(0) <- buf_out.(0) ++ in_s2_neg ++ in_s1_neg ++ in_s0_neg |> sAnd4.solve;
-          and4_out.(1) <- buf_out.(1) ++ in_s2_neg ++ in_s1_neg ++ s0 |> sAnd4.solve;
-          and4_out.(2) <- buf_out.(2) ++ in_s2_neg ++ s1 ++ in_s0_neg |> sAnd4.solve;
-          and4_out.(3) <- buf_out.(3) ++ in_s2_neg ++ s1 ++ s0 |> sAnd4.solve;
-          and4_out.(4) <- buf_out.(4) ++ s2 ++ in_s1_neg ++ in_s0_neg |> sAnd4.solve;
-          and4_out.(5) <- buf_out.(5) ++ s2 ++ in_s1_neg ++ s0 |> sAnd4.solve;
-          and4_out.(6) <- buf_out.(6) ++ s2 ++ s1 ++ in_s0_neg |> sAnd4.solve;
-          and4_out.(7) <- buf_out.(7) ++ s2 ++ s1 ++ s0 |> sAnd4.solve;
-
-          (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (unitToStr e)) and4_out; *)
-
-          let nor8_out = and4_out.(0) ++ 
-                         and4_out.(1) ++ 
-                         and4_out.(2) ++ 
-                         and4_out.(3) ++ 
-                         and4_out.(4) ++ 
-                         and4_out.(5) ++ 
-                         and4_out.(6) ++ 
-                         and4_out.(7) |> sNor8.solve in
+          [and4_out_0 ++ 
+          and4_out_1 ++ 
+          and4_out_2 ++ 
+          and4_out_3 ++ 
+          and4_out_4 ++ 
+          and4_out_5 ++ 
+          and4_out_6 ++ 
+          and4_out_7] |> sNor8.solve >>= fun nor8_out ->
           (* Printf.printf "nor8_out: %s\n"  (unitToStr (make_unit[nor8_out]))  *)
           
-          let out_y = nor8_out ++ in_oe_neg |> sTbuf.solve in
-          let neg_y = nor8_out ++ in_oe_neg |> sTneg.solve in
-          (out_y ++ neg_y ++ (Ok xs))
-
-      | _ -> Error { desc = "[s74hc251] missing input\n" } ;
+          [nor8_out ++ in_oe_neg] |> sTbuf.solve >>= fun out_y ->
+          [nor8_out ++ in_oe_neg] |> sTneg.solve >>= fun neg_y ->
+          Ok (out_y ++ neg_y ++ (".", xs))
+      | [(lab, _)] -> Error {desc = (Printf.sprintf "s74hc251 FAIL - %s missing inputs\n" lab)}
+      | _ -> Error { desc = "s74hc251 FAIL missing unit input\n" } ;
       
 }
 
@@ -444,49 +540,50 @@ let s74hc251 : unit solver = {
 let s74hc153 : unit solver = {
 
   solve = fun result' -> 
-      result' >>= fun unit' ->
-          begin match unit' with
-          | [] -> Error { desc = "[s74hc153] missing input\n" } ;
-          | (ea::eb::s0::s1::in0a::in1a::in2a::in3a::in0b::in1b::in2b::in3b::xs) -> 
+      (* result' >>= fun unit' -> *)
+          begin match result' with
+          | [(lab, [])] -> Error { desc = "[s74hc153] missing input\n" } ;
+          | [(lab, ea::eb::s0::s1::in0a::in1a::in2a::in3a::in0b::in1b::in2b::in3b::xs)] -> 
 
-              sNeg.solve (Ok [ea]) >>= fun in_ea_neg -> 
-              sNeg.solve (Ok [eb]) >>= fun in_eb_neg -> 
-              sNeg.solve (Ok [s0]) >>= fun in_s0_neg -> 
-              sNeg.solve (Ok [s1]) >>= fun in_s1_neg -> 
-  
-              Ok (in0a :: in_s1_neg @ in_s0_neg @ in_ea_neg)  |> sAnd4.solve >>= fun a0 ->
-              Ok (in1a :: in_s1_neg @ s0 :: in_ea_neg)        |> sAnd4.solve >>= fun a1 ->
-              Ok (in2a :: s1 :: in_s0_neg @ in_ea_neg)        |> sAnd4.solve >>= fun a2 ->
-              Ok (in3a :: s1 :: s0 :: in_ea_neg)              |> sAnd4.solve >>= fun a3 ->
-              Ok (in0b :: in_s1_neg @ in_s0_neg @ in_eb_neg)  |> sAnd4.solve >>= fun a4 ->
-              Ok (in1b :: in_s1_neg @ s0 :: in_eb_neg)        |> sAnd4.solve >>= fun a5 ->
-              Ok (in2b :: s1 :: in_s0_neg @ in_eb_neg)        |> sAnd4.solve >>= fun a6 ->
-              Ok (in3b :: s1 :: s0 :: in_eb_neg)              |> sAnd4.solve >>= fun a7 ->
+            sNeg.solve [("ean", [ea])] >>= fun in_ea_neg' -> let (_, in_ea_neg) = in_ea_neg' in
+            sNeg.solve [("ebn", [eb])] >>= fun in_eb_neg' -> let (_, in_eb_neg) = in_eb_neg' in 
+            sNeg.solve [("s0n", [s0])] >>= fun in_s0_neg' -> let (_, in_s0_neg) = in_s0_neg' in 
+            sNeg.solve [("s1n", [s1])] >>= fun in_s1_neg' -> let (_, in_s1_neg) = in_s1_neg' in 
 
-              Ok (a0 @ a1 @ a2 @ a3)                          |> sOr4.solve >>= fun or4a_out ->
-              Ok (a4 @ a5 @ a6 @ a7)                          |> sOr4.solve >>= fun or4b_out ->
-                                
-              Ok (or4a_out @ or4b_out @ xs)               
+            [("a0", in0a :: in_s1_neg @ in_s0_neg @ in_ea_neg)]  |> sAnd4.solve >>= fun a0' -> let (_, a0) = a0' in
+            [("a1", in1a :: in_s1_neg @ s0 :: in_ea_neg)]        |> sAnd4.solve >>= fun a1' -> let (_, a1) = a1' in
+            [("a2", in2a :: s1 :: in_s0_neg @ in_ea_neg)]        |> sAnd4.solve >>= fun a2' -> let (_, a2) = a2' in
+            [("a3", in3a :: s1 :: s0 :: in_ea_neg)]              |> sAnd4.solve >>= fun a3' -> let (_, a3) = a3' in
+            [("a4", in0b :: in_s1_neg @ in_s0_neg @ in_eb_neg)]  |> sAnd4.solve >>= fun a4' -> let (_, a4) = a4' in
+            [("a5", in1b :: in_s1_neg @ s0 :: in_eb_neg)]        |> sAnd4.solve >>= fun a5' -> let (_, a5) = a5' in
+            [("a6", in2b :: s1 :: in_s0_neg @ in_eb_neg)]        |> sAnd4.solve >>= fun a6' -> let (_, a6) = a6' in
+            [("a7", in3b :: s1 :: s0 :: in_eb_neg)]              |> sAnd4.solve >>= fun a7' -> let (_, a7) = a7' in
 
-              (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
+            [("a0123", a0 @ a1 @ a2 @ a3)]                       |> sOr4.solve >>= fun or4a_out' -> let (_, or4a_out) = or4a_out' in
+            [("a4567", a4 @ a5 @ a6 @ a7)]                       |> sOr4.solve >>= fun or4b_out' -> let (_, or4b_out) = or4b_out' in
+
+            Ok (lab, or4a_out @ or4b_out @ xs)              
+
+            (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
             
-          | _ -> Error { desc = "[s74hc153] missing input\n" } ;
+          |[(lab, _)] -> Error { desc = "s74hc153 FAIL missing input\n" } ;
+          | _ -> Error { desc = "s74hc153 FAIL missing unit input\n" } ;
          end
 }
 
 let s74hc153_test : unit linesResult = 
 
-  let in_a = n2Unit 0b0011 "a" 4 in
-  let in_b = n2Unit 0b0110 "b" 4 in
-  let ea_eb = n2Unit 0b00 "ea_eb" 2 in
+  let in_a = n2Unit 0b0011 "a." 4 in
+  let in_b = n2Unit 0b0110 "b." 4 in
+  let ea_eb = n2Unit 0b00 "ea_eb." 2 in
 
   let res = 
-  Ok (ea_eb @ [l; l] @ in_a @ in_b) |> s74hc153.solve >>= fun test01 ->
-  Ok (ea_eb @ [h; l] @ in_a @ in_b) |> s74hc153.solve >>= fun test02 ->
-  Ok (ea_eb @ [l; h] @ in_a @ in_b) |> s74hc153.solve >>= fun test03 ->
-  Ok (ea_eb @ [h; h] @ in_a @ in_b) |> s74hc153.solve >>= fun test04 ->
-
-  test_unit (test01 @ test02 @ test03 @ test04) (n2Unit 0b00101101 "exp_val" 8)
+  [ea_eb ++ ("addr.", l @ l) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test01 ->
+  [ea_eb ++ ("addr.", h @ l) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test02 ->
+  [ea_eb ++ ("addr.", l @ h) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test03 ->
+  [ea_eb ++ ("addr.", h @ h) ++ in_a ++ in_b] |> s74hc153.solve >>= fun test04 ->
+(* Printf.printf "s74hc153_test: %s -> %s\n" (unitToStr2  test01 ) (unitToStr2 (ea_eb ++ ("addr.", l @ l) ++ in_a ++ in_b)); *)
+  test_unit (test01 ++ test02 ++ test03 ++ test04) (n2Unit 0b00101101 "exp_val" 8)
   in
   match res with
       |Ok m -> Printf.printf "s74hc153_test: PASS\n"; Ok m
@@ -498,59 +595,60 @@ let s74hc153_test : unit linesResult =
 let s74hc283 : unit solver = {
 
   solve = fun result' -> 
-      result' >>= fun unit' ->
-          begin match unit' with
-          | [] -> Error { desc = "[s74hc283] missing input\n" } ;
-          | (cin::a1::a2::a3::a4::b1::b2::b3::b4::xs) -> 
+      (* result' >>= fun unit' -> *)
+          begin match result' with
+          | [(lab, [])] -> Error { desc = "[s74hc283] missing input\n" }
+          | [(lab, cin::a1::a2::a3::a4::b1::b2::b3::b4::xs)] -> 
 
-              Ok [cin] |> sNeg.solve >>= fun cin_neg -> 
+              [("cin", [cin])] |> sNeg.solve >>= fun cin_neg ->  
 
-              Ok [a1; b1] |> sNand.solve >>= fun nand20 ->
-              Ok [a1; b1] |> sNor.solve >>= fun nor20 ->
-              Ok [a2; b2] |> sNand.solve >>= fun nand21 ->
-              Ok [a2; b2] |> sNor.solve >>= fun nor21 ->
-              Ok [a3; b3] |> sNand.solve >>= fun nand22 ->
-              Ok [a3; b3] |> sNor.solve >>= fun nor22 ->
-              Ok [a4; b4] |> sNand.solve >>= fun nand23 ->
-              Ok [a4; b4] |> sNor.solve >>= fun nor23 ->
+              [("na20", [a1; b1])] |> sNand.solve >>= fun nand20 ->
+              [("no20", [a1; b1])] |> sNor.solve >>= fun nor20 ->
+              [("na21", [a2; b2])] |> sNand.solve >>= fun nand21 ->
+              [("no21", [a2; b2])] |> sNor.solve >>= fun nor21 ->
+              [("na22", [a3; b3])] |> sNand.solve >>= fun nand22 ->
+              [("no22", [a3; b3])] |> sNor.solve >>= fun nor22 -> 
+              [("na23", [a4; b4])] |> sNand.solve >>= fun nand23 ->
+              [("no23", [a4; b4])] |> sNor.solve >>= fun nor23 -> 
 
-              Ok nor20 |> sNeg.solve >>= fun nor20n ->
-              Ok nor21 |> sNeg.solve >>= fun nor21n ->
-              Ok nor22 |> sNeg.solve >>= fun nor22n ->
-              Ok nor23 |> sNeg.solve >>= fun nor23n ->
+              [nor20] |> sNeg.solve >>= fun nor20n ->
+              [nor21] |> sNeg.solve >>= fun nor21n ->
+              [nor22] |> sNeg.solve >>= fun nor22n ->
+              [nor23] |> sNeg.solve >>= fun nor23n ->
 
-              Ok (nor20n @ nand20) |> sAnd.solve >>= fun and2020 ->
-              Ok (nor20n @ nand21) |> sAnd.solve >>= fun and2021 ->
-              Ok (nor21n @ nand21) |> sAnd.solve >>= fun and2121 ->
-              Ok (nor22n @ nand22) |> sAnd.solve >>= fun and2222 ->
-              Ok (nor23n @ nand23) |> sAnd.solve >>= fun and2323 ->
-              Ok (nand23 @ nor22) |> sAnd.solve >>= fun and23nor22 ->
-              Ok (nand22 @ nor21) |> sAnd.solve >>= fun and22nor21 ->
-              Ok (nand22 @ nand23 @ nor21) |> sAnd3.solve >>= fun and32223nor21 ->
-              Ok (nand21 @ nand22 @ nor20) |> sAnd3.solve >>= fun and32122nor20 ->
-              Ok (nand21 @ nand22 @ nand23 @ nor20) |> sAnd4.solve >>= fun and4 ->
+              [nor20n ++ nand20] |> sAnd.solve >>= fun and2020 ->
+              [nor20n ++ nand21] |> sAnd.solve >>= fun and2021 ->
+              [nor21n ++ nand21] |> sAnd.solve >>= fun and2121 ->
+              [nor22n ++ nand22] |> sAnd.solve >>= fun and2222 ->
+              [nor23n ++ nand23] |> sAnd.solve >>= fun and2323 ->
+              [nand23 ++ nor22] |> sAnd.solve >>= fun and23nor22 ->
+              [nand22 ++ nor21] |> sAnd.solve >>= fun and22nor21 ->
+              [nand22 ++ nand23 ++ nor21] |> sAnd3.solve >>= fun and32223nor21 ->
+              [nand21 ++ nand22 ++ nor20] |> sAnd3.solve >>= fun and32122nor20 ->
+              [nand21 ++ nand22 ++ nand23 ++ nor20] |> sAnd4.solve >>= fun and4 ->
 
-              Ok (cin_neg @ nand20) |> sAnd.solve >>= fun andinn20 ->
-              Ok (cin_neg @ nand20 @ nand21) |> sAnd3.solve >>= fun iand2021 ->
-              Ok (cin_neg @ nand20 @ nand21 @ nand22) |> sAnd4.solve >>= fun iand202122  ->        
-              Ok (cin_neg @ nand20 @ nand21 @ nand22 @ nand23) |> sAnd5.solve >>= fun and5 ->
+              [cin_neg ++ nand20] |> sAnd.solve >>= fun andinn20 ->
+              [cin_neg ++ nand20 ++ nand21] |> sAnd3.solve >>= fun iand2021 ->
+              [cin_neg ++ nand20 ++ nand21 ++ nand22] |> sAnd4.solve >>= fun iand202122  ->        
+              [cin_neg ++ nand20 ++ nand21 ++ nand22 ++ nand23] |> sAnd5.solve >>= fun and5 ->
 
-              Ok (iand2021 @ and2021 @ nor21) |> sNor3.solve >>= fun nor32021 ->
-              Ok (andinn20 @ nor20) |> sNor.solve >>= fun nor20in20 ->
+              [iand2021 ++ and2021 ++ nor21] |> sNor3.solve >>= fun nor32021 ->
+              [andinn20 ++ nor20] |> sNor.solve >>= fun nor20in20 ->
 
-              Ok (iand202122 @ and32122nor20 @ and22nor21 @ nor22) |> sNor4.solve >>= fun nor41 ->
+              [iand202122 ++ and32122nor20 ++ and22nor21 ++ nor22] |> sNor4.solve >>= fun nor41 ->
 
-              Ok (cin :: and2020) |> sXor.solve >>= fun sum1 ->
-              Ok (nor20in20 @ and2121) |> sXor.solve >>= fun sum2 ->
-              Ok (nor32021 @ and2222) |> sXor.solve >>= fun sum3 ->
-              Ok (nor41 @ and2323) |> sXor.solve >>= fun sum4 ->
-              Ok (and5 @ and4 @ and32223nor21 @ and23nor22 @ nor23) |> sNor5.solve >>= fun overflow ->
+              [("cin", [cin]) ++ and2020] |> sXor.solve >>= fun sum1 ->
+              [nor20in20 ++ and2121] |> sXor.solve >>= fun sum2 ->
+              [nor32021 ++ and2222] |> sXor.solve >>= fun sum3 ->
+              [nor41 ++ and2323] |> sXor.solve >>= fun sum4 ->
+              [and5 ++ and4 ++ and32223nor21 ++ and23nor22 ++ nor23] |> sNor5.solve >>= fun overflow ->
 
               (* Printf.printf "nor8_out: %s\n"  (unitToStr (make_unit[nor8_out])) ++ *)
               
-              Ok (sum1 @ sum2 @ sum3 @ sum4 @ overflow @ xs)
+              Ok (sum1 ++ sum2 ++ sum3 ++ sum4 ++ overflow ++ ("rest", xs))
 
-          | _ -> Error { desc = "[s74hc283] missing input\n" } ;
+          |[(lab, _)] -> Error { desc = "s74hc283 FAIL missing input\n" } ;
+          | _ -> Error { desc = "s74hc283 FAIL missing unit input\n" } ;
           end
 }
 
@@ -559,15 +657,15 @@ let s74hc283 : unit solver = {
 let s2x74hc283 : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' -> 
-    match unit' with
+    (* result' >>= fun unit' ->  *)
+    match result' with
       | [] -> Error { desc = "[s2x74hc283] missing input\n" };
-      | carry0::a0::a1::a2::a3::a4::a5::a6::a7::b0::b1::b2::b3::b4::b5::b6::b7::xs -> 
-         Ok [carry0; a0; a1; a2; a3; b0; b1; b2; b3] |> 
+      | [(lab, carry0::a0::a1::a2::a3::a4::a5::a6::a7::b0::b1::b2::b3::b4::b5::b6::b7::xs)] -> 
+         [("1-283", [carry0; a0; a1; a2; a3; b0; b1; b2; b3])] |> 
          s74hc283.solve >>= fun sum1_u -> begin match sum1_u with
-            | s1::s2::s3::s4::carry1::sx -> Ok [carry1; a4; a5; a6; a7; b4; b5; b6; b7] |> 
+            | (_, s1::s2::s3::s4::carry1::sx) ->  [("2-283", [carry1; a4; a5; a6; a7; b4; b5; b6; b7])] |> 
               s74hc283.solve >>= fun sum2_u -> begin match sum2_u with
-                  | s5::s6::s7::s8::carry2::sx -> Ok [s1; s2; s3; s4; s5; s6; s7; s8; carry2];
+                  | (_, s5::s6::s7::s8::carry2::sx) -> Ok (lab^"2x283.", [s1; s2; s3; s4; s5; s6; s7; s8; carry2]);
                   | _ -> Error { desc = "[s2x74hc283] missing input\n" } ;
                 end
             | _ -> Error { desc = "[s2x74hc283] missing input\n" } ;
@@ -583,22 +681,22 @@ let s2x74hc283 : unit solver = {
 let sGigatronALU : unit solver = {
 
   solve = fun result' -> 
-    result' >>= fun unit' -> 
-    match unit' with
+    (* result' >>= fun unit' ->  *)
+    match result' with
       | [] -> Error { desc = "[s2x74hc283] missing input\n" };
-      | al::ar0::ar1::ar2::ar3::ac0::ac1::ac2::ac3::ac4::ac5::ac6::ac7::bus0::bus1::bus2::bus3::bus4::bus5::bus6::bus7::xs -> 
-         Ok [l; al; ac0; bus0; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit0 -> 
-         Ok [l; al; ac1; bus1; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit1 ->
-         Ok [l; al; ac2; bus2; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit2 ->  
-         Ok [l; al; ac3; bus3; ar0; ar1; ar2; ar3; l; h; l; h] |> s74hc153.solve >>= fun unit3 -> 
-         Ok [al; l; bus4; ac4; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit4 ->  
-         Ok [al; l; bus5; ac5; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit5 -> 
-         Ok [al; l; bus6; ac6; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit6 -> 
-         Ok [al; l; bus7; ac7; l; l; h; h; ar0; ar2; ar1; ar3] |> s74hc153.solve >>= fun unit7 ->      
+      | [(lab, al::ar0::ar1::ar2::ar3::ac0::ac1::ac2::ac3::ac4::ac5::ac6::ac7::bus0::bus1::bus2::bus3::bus4::bus5::bus6::bus7::xs)] -> 
+         [("u0.", l @ [al; ac0; bus0; ar0; ar1; ar2; ar3] @ l @ h @ l @ h)] |> s74hc153.solve >>= fun unit0 -> 
+         [("u1.", l @ [al; ac1; bus1; ar0; ar1; ar2; ar3] @ l @ h @ l @ h)] |> s74hc153.solve >>= fun unit1 ->
+         [("u2.", l @ [al; ac2; bus2; ar0; ar1; ar2; ar3] @ l @ h @ l @ h)] |> s74hc153.solve >>= fun unit2 ->  
+         [("u3.", l @ [al; ac3; bus3; ar0; ar1; ar2; ar3] @ l @ h @ l @ h)] |> s74hc153.solve >>= fun unit3 -> 
+         [("u4.", al:: l @ [bus4; ac4] @ l @ l @ h @ h @ [ar0; ar2; ar1; ar3])] |> s74hc153.solve >>= fun unit4 ->  
+         [("u5.", al:: l @ [bus5; ac5] @ l @ l @ h @ h @ [ar0; ar2; ar1; ar3])] |> s74hc153.solve >>= fun unit5 -> 
+         [("u6.", al:: l @ [bus6; ac6] @ l @ l @ h @ h @ [ar0; ar2; ar1; ar3])] |> s74hc153.solve >>= fun unit6 -> 
+         [("u7.", al:: l @ [bus7; ac7] @ l @ l @ h @ h @ [ar0; ar2; ar1; ar3])] |> s74hc153.solve >>= fun unit7 ->      
          
-          begin match unit0 @ unit1 @ unit2 @ unit3 @ unit4 @ unit5 @ unit6 @ unit7 with
-            | za0::zb0::za1::zb1::za2::zb2::za3::zb3::za4::zb4::za5::zb5::za6::zb6::za7::zb7::sx -> 
-              Ok [ar0; za0; za1; za2; za3; za4; za5; za6; za7; zb0; zb1; zb2; zb3; zb4; zb5; zb6; zb7] |> s2x74hc283.solve 
+          begin match unit0 ++ unit1 ++ unit2 ++ unit3 ++ unit4 ++ unit5 ++ unit6 ++ unit7 with
+            | (_, za0::zb0::za1::zb1::za2::zb2::za3::zb3::za4::zb4::za5::zb5::za6::zb6::za7::zb7::sx) -> 
+              [(lab^"alu.", [ar0; za0; za1; za2; za3; za4; za5; za6; za7; zb0; zb1; zb2; zb3; zb4; zb5; zb6; zb7])] |> s2x74hc283.solve 
             | _ -> Error { desc = "[sGigatronALU] missing input\n" } ;
           end
 
@@ -618,83 +716,83 @@ let sGigatronALU_test : unit linesResult =
   (* 000 - st (a) al=0 *)
   (* 010 - bcc (-a) al=1 c=1 *)
 
-  let instr_code_xor = n2Unit 0b01101 "cod" 5 in (* xor      al=1 c=0 *)
-  let instr_code_and = n2Unit 0b10001 "cod" 5 in (* and      al=1 c=0 *)
-  let instr_code_or  = n2Unit 0b11101 "cod" 5 in (* or       al=1 c=0 *)
-  let instr_code_ld  = n2Unit 0b11001 "cod" 5 in (* ld (b)   al=1 c=0 *)
-  let instr_code_add = n2Unit 0b11000 "cod" 5 in (* add      al=0 c=0 *)
-  let instr_code_sub = n2Unit 0b00110 "cod" 5 in (* sub      al=0 c=1 *)
-  let instr_code_st  = n2Unit 0b00000 "cod" 5 in (* st (a)   al=0 c=0 *)
-  let instr_code_bcc = n2Unit 0b01011 "cod" 5 in (* bcc (-a) al=1 c=1 *)
+  let instr_code_xor = n2Unit 0b01101 "cod." 5 in (* xor      al=1 c=0 *)
+  let instr_code_and = n2Unit 0b10001 "cod." 5 in (* and      al=1 c=0 *)
+  let instr_code_or  = n2Unit 0b11101 "cod." 5 in (* or       al=1 c=0 *)
+  let instr_code_ld  = n2Unit 0b11001 "cod." 5 in (* ld (b)   al=1 c=0 *)
+  let instr_code_add = n2Unit 0b11000 "cod." 5 in (* add      al=0 c=0 *)
+  let instr_code_sub = n2Unit 0b00110 "cod." 5 in (* sub      al=0 c=1 *)
+  let instr_code_st  = n2Unit 0b00000 "cod." 5 in (* st (a)   al=0 c=0 *)
+  let instr_code_bcc = n2Unit 0b01011 "cod." 5 in (* bcc (-a) al=1 c=1 *)
 
-  let xor_ac  = n2Unit  0b10101010  "ac" 8 in 
-  let xor_bus = n2Unit  0b11001100 "bus" 8 in
+  let xor_ac  = n2Unit  0b10101010  "ac." 8 in 
+  let xor_bus = n2Unit  0b11001100 "bus." 8 in
 
-  let and_ac  = n2Unit 0b10101010 "ac" 8 in
-  let and_bus = n2Unit 0b11001100 "bus" 8 in
+  let and_ac  = n2Unit 0b10101010 "ac." 8 in
+  let and_bus = n2Unit 0b11001100 "bus." 8 in
 
-  let or_ac  = n2Unit 0b10101010 "ac" 8 in
-  let or_bus = n2Unit 0b11001100 "bus" 8 in
+  let or_ac  = n2Unit 0b10101010 "ac." 8 in
+  let or_bus = n2Unit 0b11001100 "bus." 8 in
 
-  let ld_ac = n2Unit 0 "ac" 8 in
-  let ld_bus = n2Unit (-10) "bus" 8 in
+  let ld_ac = n2Unit 0 "ac." 8 in
+  let ld_bus = n2Unit (-10) "bus." 8 in
 
-  let add_ac  = n2Unit 20 "ac" 8 in
-  let add_bus = n2Unit 15 "bus" 8 in
+  let add_ac  = n2Unit 20 "ac." 8 in
+  let add_bus = n2Unit 15 "bus." 8 in
 
-  let sub_ac  = n2Unit 0 "ac" 8 in
-  let sub_bus = n2Unit 15 "bus" 8 in
+  let sub_ac  = n2Unit 0 "ac." 8 in
+  let sub_bus = n2Unit 15 "bus." 8 in
 
   let st_ac  = n2Unit 20 "ac" 8 in
-  let st_bus = n2Unit 15 "bus" 8 in
+  let st_bus = n2Unit 15 "bus." 8 in
 
   let bcc_ac  = n2Unit (-7) "ac" 8 in (*twos compl. -> NOT then +1 -> (-5) = 11111010 + 1 = 11111011 *)
-  let bcc_bus = n2Unit 0b00000000 "bus" 8 in
+  let bcc_bus = n2Unit 0b00000000 "bus." 8 in
 
   let _ = 
-  Ok (instr_code_xor @ xor_ac @ xor_bus) |> sGigatronALU.solve >>= fun test_xor ->
+  [ instr_code_xor ++ xor_ac ++ xor_bus] |> sGigatronALU.solve >>= fun test_xor ->
     match test_unit test_xor (n2Unit 0b001100110 "exp_val" 9) with
         |Ok m -> Printf.printf "sGigatronALU_test *xor* %s: PASS\n" (unitToStr2 test_xor); Ok m
         |Error e ->  Printf.printf "sGigatronALU_test *xor* %s: FAIL - %s\n" (unitToStr2 test_xor) e.desc; Error e
   in
   let _ =
-  Ok (instr_code_and @ and_ac @ and_bus) |> sGigatronALU.solve >>= fun test_and ->
+  [instr_code_and ++ and_ac ++ and_bus] |> sGigatronALU.solve >>= fun test_and ->
     match test_unit test_and (n2Unit 0b10001000 "exp_val" 9) with
       |Ok m -> Printf.printf "sGigatronALU_test *and* %s: PASS\n" (unitToStr2 test_and); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test *and* %s: FAIL - %s\n" (unitToStr2 test_and) e.desc; Error e
   in
   let _ = 
-  Ok (instr_code_or  @ or_ac  @ or_bus) |> sGigatronALU.solve >>= fun test_or  ->
+  [instr_code_or ++ or_ac ++ or_bus] |> sGigatronALU.solve >>= fun test_or  ->
     match test_unit test_or (n2Unit 0b11101110 "exp_val" 9) with
       |Ok m -> Printf.printf "sGigatronALU_test *or* %s: PASS\n" (unitToStr2 test_or); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test *or* %s: FAIL - %s\n" (unitToStr2 test_or) e.desc; Error e
   in
   let _ =
-  Ok (instr_code_add @ add_ac @ add_bus) |> sGigatronALU.solve >>= fun test_add ->
+  [instr_code_add ++ add_ac ++ add_bus] |> sGigatronALU.solve >>= fun test_add ->
     match test_unit test_add (n2Unit 35 "exp_val" 9) with
       |Ok m -> Printf.printf "sGigatronALU_test *add* %s: PASS\n" (unitToStr2 test_add); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test *add* %s: FAIL - %s\n" (unitToStr2 test_add) e.desc; Error e
   in
   let _ = 
-  Ok (instr_code_sub @ sub_ac @ sub_bus) |> sGigatronALU.solve >>= fun test_sub ->
+  [instr_code_sub ++ sub_ac ++ sub_bus] |> sGigatronALU.solve >>= fun test_sub ->
     match test_unit test_sub (n2Unit 15 "exp_val" 9) with
       |Ok m -> Printf.printf "sGigatronALU_test *sub* %s: PASS\n" (unitToStr2 test_sub); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test *sub* %s: FAIL - %s\n" (unitToStr2 test_sub) e.desc; Error e
   in
   let _ =
-  Ok (instr_code_st  @ st_ac @ st_bus) |> sGigatronALU.solve >>= fun test_st  ->
+  [instr_code_st ++ st_ac ++ st_bus] |> sGigatronALU.solve >>= fun test_st  ->
     match test_unit test_st (n2Unit 20 "exp_val" 9) with
       |Ok m -> Printf.printf "sGigatronALU_test *st* %s: PASS\n" (unitToStr2 test_st); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test *st* %s: FAIL - %s\n" (unitToStr2 test_st) e.desc; Error e
   in
   let _ =
-  Ok (instr_code_bcc @ bcc_ac @ bcc_bus) |> sGigatronALU.solve >>= fun test_bcc ->
+  [instr_code_bcc ++ bcc_ac ++ bcc_bus] |> sGigatronALU.solve >>= fun test_bcc ->
     match test_unit test_bcc (n2Unit 7 "exp_val" 9) with
       |Ok m -> Printf.printf "sGigatronALU_test %s *bcc* %s: PASS\n" (unitToStr2 bcc_ac) (unitToStr2 test_bcc); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test %s *bcc* %s: FAIL - %s\n" (unitToStr2 bcc_ac) (unitToStr2 test_bcc) e.desc; Error e
   in 
-  Ok (instr_code_ld  @ ld_ac  @ ld_bus) |> sGigatronALU.solve >>= fun test_ld  ->
-  match test_unit test_ld ((n2Unit (-10) "exp_val" 8) @ l::[])  with (* can't convert 9 bit as sign, by alu result 9 bit is used as carry *)
+  [instr_code_ld ++ ld_ac ++ ld_bus] |> sGigatronALU.solve >>= fun test_ld  ->
+  match test_unit test_ld ((n2Unit (-10) "exp_val" 8) ++ ("carry", l))  with (* can't convert 9 bit as sign, by alu result 9 bit is used as carry *)
       |Ok m -> Printf.printf "sGigatronALU_test %s *ld* %s: PASS\n" (unitToStr2 ld_bus)  (unitToStr2 test_ld); Ok m
       |Error e ->  Printf.printf "sGigatronALU_test %s *ld* %s: FAIL - %s\n" (unitToStr2 ld_bus) (unitToStr2 test_ld) e.desc; Error e 
  
@@ -702,23 +800,23 @@ let sGigatronALU_test : unit linesResult =
 type stateT = {
 
   tick: int;
-  units: unit linesResult
+  units: unit list (* todo: unit list *)
 }
 
 
 let sMain : unit solver = {
   solve = fun result' -> 
-    result' >>= fun unit' ->
-      match unit' with
-      | clk::en_clk::xs -> 
+    (* result' >>= fun unit' -> *)
+      match result' with
+      | [(lab, clk::en_clk::xs)] -> 
       
-        sNor.solve (Ok [clk; en_clk]) >>= fun clk' ->
+        sNor.solve [("clk", [clk; en_clk])] >>= fun clk' -> let (_, clk'') = clk' in
 
-        let xx = clk' @ xs
-        in
+        (* let xx = clk'' @ xs
+        in *)
         (* Printf.printf "xx:%s\n" (unitToStr2 xx);    *)
-        begin match xx with 
-        | (_, LS_0)::(_, a)::(_, b)::(_, c)::(_, d)::xs' -> 
+        begin match clk'' @ xs with 
+        |  LS_0::a::b::c::d::xs' -> 
         
           let (a', ca) = if a = LS_1 then (LS_0, LS_1) 
                           else (LS_1, LS_0) 
@@ -732,8 +830,8 @@ let sMain : unit solver = {
           let (d', ca) = if ca = LS_1 then (if d = LS_1 then (LS_0, LS_1) else (LS_1, LS_0))
                           else (d , ca)                                                               
           in
-          Ok (clk' @ en_clk::("a", a')::("b", b')::("c", c')::("d", d')::xs')
-        | (_, LS_1)::(_, a)::(_, b)::(_, c)::(_, d)::xs' -> Ok (clk' @ en_clk::("a", a)::("b", b)::("c", c)::("d", d)::xs')
+          Ok (lab, clk'' @ en_clk::a'::b'::c'::d'::xs')
+        | LS_1::a::b::c::d::xs' -> Ok (lab, clk'' @ en_clk::a::b::c::d::xs')
         | _ -> Error {desc="sMain.solver Err.No.: 2"}
         end 
       | _ -> Error {desc="sMain.solver Err.No.: 1"}
@@ -746,7 +844,7 @@ let rec test_loop (s: stateT) =
     Printf.printf ">>> %s\n" (unitToStr2 res);   
     if s.tick > 0 then 
 
-      test_loop {tick = (s.tick - 1); units = Ok res}
+      test_loop {tick = (s.tick - 1); units = [res]}
     else Ok []
 
   
@@ -756,7 +854,7 @@ let () =
   let _ = make_unit_test in
   let _ = sGigatronALU_test in
 
-  let _ = match test_loop {tick=32; units = Ok (h::l::l::l::l::l::l::[])} with
+  let _ = match test_loop {tick=32; units = [ ("test", h @ l @ l @ l @ l @ l @ l)]} with
         | Ok m -> ()
         | Error e -> Printf.printf "test_loop FAIL - %s\n" e.desc; 
   in
