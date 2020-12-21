@@ -1,9 +1,10 @@
 #!/bin/bash
-#make -k
+# make -k
 make all
-#rm ./*.cmi
-#rm ./*.o
-#rm ./*.cmx
+# rm ./*.cmi
+# rm ./*.o
+rm ./*.cmo
+# rm ./*.cmx
 
 #./logic
 ocamlrun ./logic.bytes
