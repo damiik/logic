@@ -5,5 +5,5 @@ make all
 #rm ./*.o
 #rm ./*.cmx
 
-#./first
+#./logic
 ocamlrun ./logic.bytes

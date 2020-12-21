@@ -1,121 +1,11 @@
 (* module LogicUnit = struct *)
 
-    type lineStateT = LS_1 | LS_0 | LS_X
-
-
-    let lAnd = fun (a: lineStateT) (b : lineStateT) -> 
-
-    if a == LS_1 && b == LS_1 then LS_1
-    else if a == LS_0 || b == LS_0 then LS_0
-    else
-          LS_X
-
-    let lAnd3 = fun (a: lineStateT) (b : lineStateT) (c : lineStateT) -> 
-
-    if a == LS_1 && b == LS_1 && c == LS_1 then LS_1
-    else if a == LS_0 || b == LS_0 || c == LS_0 then LS_0
-    else
-          LS_X
-
-    let lAnd4 = fun (a: lineStateT) (b : lineStateT) (c : lineStateT) (d : lineStateT) -> 
-
-    if a == LS_1 && b == LS_1 && c == LS_1 && d == LS_1 then LS_1
-    else if a == LS_0 || b == LS_0 || c == LS_0 || d == LS_0 then LS_0
-    else
-          LS_X
-
-    let lAnd5 = fun (a: lineStateT) (b : lineStateT) (c : lineStateT) (d : lineStateT) (e : lineStateT) -> 
-
-    if a == LS_1 && b == LS_1 && c == LS_1 && d == LS_1 && e == LS_1 then LS_1
-    else if a == LS_0 || b == LS_0 || c == LS_0 || d == LS_0 || e == LS_0 then LS_0
-    else
-          LS_X
-
-    let lNand = fun (a: lineStateT) (b : lineStateT) -> 
-    if a == LS_1 && b == LS_1 then LS_0
-    else if a == LS_0 || b == LS_0 then LS_1
-    else
-          LS_X
-
-    let lOr = fun (a: lineStateT) (b : lineStateT) -> 
-    if a == LS_0 && b == LS_0 then LS_0
-    else if a == LS_1 || b == LS_1 then LS_1
-    else
-          LS_X
-
-
-    let lOr4 = fun (a: lineStateT) (b : lineStateT) (c : lineStateT) (d : lineStateT) -> 
-
-    if a == LS_0 && b == LS_0 && c == LS_0 && d == LS_0 then LS_0
-    else if a == LS_1 || b == LS_1 || c == LS_1 || d == LS_1 then LS_1
-    else
-          LS_X
-
-    let lNor = fun (a: lineStateT) (b : lineStateT) -> 
-    if a == LS_0 && b == LS_0 then LS_1
-    else if a == LS_1 || b == LS_1 then LS_0
-    else
-          LS_X
-        
-    let lNor3 = fun (a: lineStateT) (b: lineStateT) (c: lineStateT) -> 
-    if a == LS_0 && b == LS_0 && c == LS_0 then LS_1
-    else if a == LS_1 || b == LS_1 || c == LS_1 then LS_0
-    else
-          LS_X
-
-    let lNor4 = fun (a: lineStateT) (b: lineStateT) (c: lineStateT)  (d: lineStateT) -> 
-    if a == LS_0 && b == LS_0 && c == LS_0 && d == LS_0 then LS_1
-    else if a == LS_1 || b == LS_1 || c == LS_1 || d == LS_1 then LS_0
-    else
-          LS_X
-
-    let lNor5 = fun (a: lineStateT) (b: lineStateT) (c: lineStateT) (d: lineStateT)  (e: lineStateT) -> 
-    if a == LS_0 && b == LS_0 && c == LS_0 && d == LS_0  && e == LS_0 then LS_1
-    else if a == LS_1 || b == LS_1 || c == LS_1 || d == LS_1 || e == LS_1 then LS_0
-    else
-          LS_X
-
-
-    let lXor = fun (a: lineStateT) (b : lineStateT) -> 
-
-    if (a == LS_X || b == LS_X) then LS_X
-    else if a != b then LS_1
-    else
-          LS_0
-
-    let lNot = fun (a: lineStateT) -> 
-        if a == LS_X then LS_X
-        else
-          if a == LS_1 then LS_0
-          else LS_1
-
-    let lTnot = fun (oe: lineStateT) (a: lineStateT) -> 
-        if oe != LS_1 then LS_X
-        else 
-          if a == LS_X then LS_X
-          else
-            if a == LS_1 then LS_0
-            else LS_1
-
-    let lTbuf = fun (oe: lineStateT) (a: lineStateT) -> 
-        if oe != LS_1 then LS_X
-        else 
-          if a == LS_X then LS_X
-          else a
-
-
-    let l = [LS_0]
-    let h = [LS_1]
+open LogicBase
 
     type unit =  (string * (lineStateT list))
     type error = {desc: string;}
 
     type 'a linesResult = (('a, error) result) 
-
-
-    (* type mess = SUnit of signal list | MUnit of ((unit, error) result) list *)
-    type mess =  SUnit of unit linesResult | MUnit of (unit linesResult list) 
-    (* | (unit linesResult)  list) *)
 
 
     type 'a solver = {
@@ -184,27 +74,6 @@
       if n=0 then 1 else x * pow(x, n-1)
 
 
-    (* let unitToNum (out: unit) : int =
-
-      let rec f = fun l i acc ->
-        match l with 
-        | [] -> acc
-        | (s, LS_1)::xs ->  (f xs (i+1) acc + pow (2, i))
-        | (s, LS_0)::xs ->  (f xs (i+1) acc)
-        | (s, LS_X)::xs ->  (f xs (i+1) acc)
-
-      in
-      (f out 0 0)  *)
-      (* ((List.length out) - 1) *)
-
-    (* 
-    let resultToNum (out: unit linesResult) : int =
-
-    match out with
-    | Error error -> -1
-    | Ok o -> unitToNum o *)
-
-
     let n2Unit (n : int) lab s : unit = 
 
     let u : int32 = if n < 0 then Int32.add (Int32.lognot (Int32.of_int (-n))) Int32.one
@@ -246,38 +115,7 @@
       | ((lab1, u1signals), (lab2, u2signals)) -> Ok ((lab1 ^ lab2), u1signals @ u2signals) *)
 
 
-    (*  (us: unit solver) *)
 
-    (* let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult = 
-
-    let rec f  (l: (unit linesResult) list)  : unit linesResult = 
-        (* let x::xs = u in Printf.printf "solve_unit:%s" (resultToStr u); *)
-        match l with
-          | [] -> Ok []
-          | x::xs -> x >>= fun u -> (f xs) >>= fun w -> Ok (u @ w)
-    in
-    let result = ref []
-    in
-    (f lr) >>= fun u -> result := u ;
-    us.solve (Ok !result) *)
-
-    (* 
-    let rec compare_unit (p1: unit) (p2: unit) : (string, string) result = 
-        match p1 with
-        | [] -> begin match p2 with       
-                      | [] -> Ok "pass"
-                      |(x2::x2s) -> Error "fail -> first unit too short"
-                      end
-        |(x1::x1s) -> begin match p2 with
-                            | [] -> Error "fail -> second unit too short"
-                            |(x2::x2s) -> 
-                                      let (l_x1, r_x1) = x1 in
-                                      let (l_x2, r_x2) = x2 in
-                                      if (compare l_x1 l_x2) != 0 then Error (Printf.sprintf "fail -> labes not equal [%s] <> [%s]" l_x1 l_x2)
-                                      else if r_x1 != r_x2 then Error (Printf.sprintf "fail -> signal levels not equal [%s] <> [%s]" l_x1 l_x2)
-                                      else compare_unit x1s x2s
-                      end *)
-                    
     (* compare without labels *)
     let test_unit (p1: unit) (p2: unit) : unit linesResult = 
 

@@ -1,3 +1,4 @@
+open LogicBase
 open LogicUnit
 
 
@@ -350,37 +351,43 @@ type stateT = {
 
 
 let sMain : unit LogicUnit.solver = {
+
   solve = fun input -> 
-      match input with
-      | [(lab, d::c::b::a::en_clk::clk::xs)] -> 
-      
-        let clk' = lNor clk en_clk in
+    match input with
+    | [(lab, d::c::b::a::en_clk::clk::xs)] -> 
 
-          let ca = clk' in
+      (* a b c d is counter last state *)
+      let clk' = lNot clk  in
 
-          let a' = lOr (lAnd a (lNot ca)) (lAnd (lNot a) ca) in
-          let ca = lAnd a clk' in
+      let ca0 = lXor clk a in
 
-          let b' = lOr (lAnd b (lNot ca)) (lAnd (lNot b) ca) in
-          let ca = lAnd3 b a clk' in
+      let a' = lOr (lAnd (lNot ca0) a) (lAnd (lNot a) ca0) in
+      let ca1 = lAnd a ca0 in
 
-          let c' = lOr (lAnd c (lNot ca)) (lAnd (lNot c) ca) in
-          let ca = lAnd4 a b c clk' in
+      let b' = lOr (lAnd (lNot ca1) b) (lAnd (lNot b) ca1) in
+      let ca2 = lAnd3 b a ca1 in
 
-          let d' = lOr (lAnd d (lNot ca)) (lAnd (lNot d) ca) in
-          let ca = lAnd d clk' in
+      let c' = lOr (lAnd (lNot ca2) c) (lAnd (lNot c) ca2) in
+      let ca3 = lAnd4 a b c ca2 in
 
-          Ok (lab, d'::c'::b'::a'::en_clk::clk'::xs)
+      let d' = lOr (lAnd (lNot ca3) d) (lAnd (lNot d) ca3) in
+      let ca4 = lAnd5 a b c d ca3 in
 
-      | _ -> Error {desc="sMain.solver Err.No.: 1"}
+      Ok (lab, d'::c'::b'::a'::LS_1::clk'::ca4::[])
+
+    | _ -> Error {desc="sMain.solver Err.No.: 1"}
 }
 
 
 let rec test_loop (s: stateT) = 
   (* Printf.printf ">>>...%d\n" s.tick; *)
   sMain.solve s.units >>= fun res ->
-    Printf.printf ">>> %s\n" (unitToStr2 res);   
-    if s.tick > 0 then 
+    Printf.printf ">>> %s\n" (unitToStr2 res);
+    let cont = match res with
+                | (lab, LS_1::LS_1::LS_1::LS_1::xs) -> true
+                | _ -> true
+                in
+    if s.tick > 0 && cont then 
 
       test_loop {tick = (s.tick - 1); units = [res]}
     else Ok []
@@ -393,16 +400,83 @@ let () =
   let _ = s2x74hc283_test in
   let _ = sGigatronALU_test in
 
-  let _ = match test_loop {tick = 48; units = [("test", l @ l @ l @ l @ l @ h @ l)] } with
+  let _ = match test_loop {tick = 48; units = [("test", l @ l @ l @ l @ l @ l @ l)] } with
           | Ok m -> ()
           | Error e -> Printf.printf "test_loop FAIL - %s\n" e.desc; 
   in
-  Printf.printf "Bye, bye." ; (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
+  Printf.printf "Bye, bye!\n" ; (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
   Printf.printf "%s" (unitToStr2 ((n2Unit 0b0110 "b." 4 ) ++ (n2Unit 0b0011 "a." 4) ));
   Printf.printf "%s" (unitToStr2 ("Man", l @ h @ h @ l @ l @ l @ h @ h));
   Printf.printf "%s" (unitToStr2 ("List", LS_0::LS_1::LS_1::LS_0::LS_0::LS_0::LS_1::LS_1::[]));
-  Printf.printf "%s" (unitToStr2 (n2Unit 0b01100011 "b." 8))
+  Printf.printf "%s\n" (unitToStr2 (n2Unit 0b01100011 "b." 8))
 
+
+
+
+
+
+
+
+
+(* I don't delete yet this code below. I still have some sentiments to this shit or whatever. *)
+
+
+    (* type mess = SUnit of signal list | MUnit of ((unit, error) result) list *)
+    (* type mess =  SUnit of unit linesResult | MUnit of (unit linesResult list)  *)
+    (* | (unit linesResult)  list) *)
+    (* let unitToNum (out: unit) : int =
+
+      let rec f = fun l i acc ->
+        match l with 
+        | [] -> acc
+        | (s, LS_1)::xs ->  (f xs (i+1) acc + pow (2, i))
+        | (s, LS_0)::xs ->  (f xs (i+1) acc)
+        | (s, LS_X)::xs ->  (f xs (i+1) acc)
+
+      in
+      (f out 0 0)  *)
+      (* ((List.length out) - 1) *)
+
+    (* 
+    let resultToNum (out: unit linesResult) : int =
+
+    match out with
+    | Error error -> -1
+    | Ok o -> unitToNum o *)
+
+
+    (*  (us: unit solver) *)
+
+    (* let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult = 
+
+    let rec f  (l: (unit linesResult) list)  : unit linesResult = 
+        (* let x::xs = u in Printf.printf "solve_unit:%s" (resultToStr u); *)
+        match l with
+          | [] -> Ok []
+          | x::xs -> x >>= fun u -> (f xs) >>= fun w -> Ok (u @ w)
+    in
+    let result = ref []
+    in
+    (f lr) >>= fun u -> result := u ;
+    us.solve (Ok !result) *)
+
+    (* 
+    let rec compare_unit (p1: unit) (p2: unit) : (string, string) result = 
+        match p1 with
+        | [] -> begin match p2 with       
+                      | [] -> Ok "pass"
+                      |(x2::x2s) -> Error "fail -> first unit too short"
+                      end
+        |(x1::x1s) -> begin match p2 with
+                            | [] -> Error "fail -> second unit too short"
+                            |(x2::x2s) -> 
+                                      let (l_x1, r_x1) = x1 in
+                                      let (l_x2, r_x2) = x2 in
+                                      if (compare l_x1 l_x2) != 0 then Error (Printf.sprintf "fail -> labes not equal [%s] <> [%s]" l_x1 l_x2)
+                                      else if r_x1 != r_x2 then Error (Printf.sprintf "fail -> signal levels not equal [%s] <> [%s]" l_x1 l_x2)
+                                      else compare_unit x1s x2s
+                      end *)
+                    
 
 
   (* let al = ("al", LS_1) in (* 0:LS_1 lub akumulator:LS_0 *)
