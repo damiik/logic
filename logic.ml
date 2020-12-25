@@ -5,7 +5,9 @@ open LogicUnit
 (* 74hc251 multiplexer simulation *)
 let s74hc251 : unit solver = {
 
-  solve = fun (input: unit list) -> match input with
+  solve = fun input -> 
+  
+  match input with
 
       | [(lab, [])] -> Error { desc = "[s74hc251] missing input\n" } ;
       | [(lab, oe::s2::s1::s0::in7::in6::in5::in4::in3::in2::in1::in0::xs)] -> 
@@ -38,7 +40,7 @@ let s74hc251 : unit solver = {
 }
 
 (* s74hc153 multiplexer simulation *)
-let s74hc153 : unit LogicUnit.solver = {
+let s74hc153 : unit solver = {
 
   solve = fun input -> begin match input with
 
@@ -64,7 +66,7 @@ let s74hc153 : unit LogicUnit.solver = {
                 (lAnd4 in3b s1 s0 in_eb_neg)
             in
             (* Printf.printf "MUX153 OUT %s %s\n" (unitToStr2 ("or4a_out", or4a_out)) (unitToStr2 ("or4b_out", or4b_out)); *)
-            Ok (lab, or4a_out::or4b_out::xs)            (* most imported bits first *)  
+            Ok (lab, or4a_out::or4b_out::xs)           (* most imported bits first *)  
     
             (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
             
@@ -84,6 +86,7 @@ let s74hc153_test : unit linesResult =
   [ea_eb ++ ("adr2.", l @ h) ++ a ++ b] |> s74hc153.solve >>= fun test02 ->
   [ea_eb ++ ("adr3.", h @ l) ++ a ++ b] |> s74hc153.solve >>= fun test03 ->
   [ea_eb ++ ("adr4.", h @ h) ++ a ++ b] |> s74hc153.solve >>= fun test04 ->
+
   (*Printf.printf "s74hc153_test: %s -> %s\n" (unitToStr2  (n2Unit 0b10110100 "exp_val" 8) ) (unitToStr2  (test02));  ++ test02 ++ test03 ++ test04)); *)
   test_unit (test01 ++ test02 ++ test03 ++ test04) (n2Unit 0b10110100 "exp_val" 8) (* a3 b3 a2 b2 a1 b1 a0 b0 *)
   in
@@ -94,7 +97,7 @@ let s74hc153_test : unit linesResult =
 
 
 (* 74hc283 adder simulation *)
-let s74hc283 : unit LogicUnit.solver = {
+let s74hc283 : unit solver = {
 
   solve = fun input -> 
           begin match input with
@@ -169,7 +172,7 @@ let s74hc283_test : unit linesResult =
 
 
 (* 2x 74hc283 sumator simulation *)
-let s2x74hc283 : unit LogicUnit.solver = {
+let s2x74hc283 : unit solver = {
 
   solve = fun input -> 
     (* input >>= fun unit' ->  *)
@@ -202,12 +205,9 @@ let s2x74hc283 : unit LogicUnit.solver = {
 
 let s2x74hc283_test : unit linesResult = 
 
-  let a = n2Unit 0b00110011 "a." 8 in
-  let b = n2Unit 0b00000110 "b." 8 in
-
   let res = 
-  [("carry.", l) ++ a ++ b] |> s2x74hc283.solve >>= fun test01 ->
-  [("carry.", h) ++ a ++ b] |> s2x74hc283.solve >>= fun test02 ->
+  [("carry.", l) ++ (n2Unit 0b00110011 "a." 8) ++ (n2Unit 0b00000110 "b." 8)] |> s2x74hc283.solve >>= fun test01 ->
+  [("carry.", h) ++ (n2Unit 0b00110011 "a." 8) ++ (n2Unit 0b00000110 "b." 8)] |> s2x74hc283.solve >>= fun test02 ->
 (* Printf.printf "s2x74hc283_test: %s -> %s\n" (unitToStr2  (n2Unit 0b001110010001110100 "exp_val" 18) ) (unitToStr2 (test01 ++ test02)); *)
   test_unit (test01 ++ test02) (n2Unit 0b001110010001110100 "exp_val" 18) 
   in
@@ -217,7 +217,7 @@ let s2x74hc283_test : unit linesResult =
 
 
 (* sGigatronALU simulation *)
-let sGigatronALU : unit LogicUnit.solver = {
+let sGigatronALU : unit solver = {
 
   solve = fun input -> 
     (* input >>= fun unit' -> ea::eb::s1::s0::in3a::in2a::in1a::in0a::in3b::in2b::in1b::in0b  *)
@@ -343,6 +343,49 @@ let sGigatronALU_test : unit linesResult =
       |Error e ->  Printf.printf "sGigatronALU_test %s *ld* %s: FAIL - %s\n" (unitToStr2 ld_bus) (unitToStr2 test_ld) e.desc; Error e 
  
 
+
+
+(* let s74hc161 : unit solver = {
+
+  solve = fun input -> begin match input with
+
+          | [(state, _); (lab, [])] -> Error { desc = "[s74hc153] missing input\n" } ;
+          | [(state, d::c::b::a::[]); (lab, pe::cep::cet::cp::mr::p3::p2::p1::p0::xs)] -> 
+          (* Printf.printf "MUX153 IN %s %s %s\n" (unitToStr2 ("es.eb.s1.s0", ea::eb::s1::s0::[])) (unitToStr2 ("ina", in3a::in2a::in1a::in0a::[])) (unitToStr2 ("inb", in3b::in2b::in1b::in0b::[])); *)
+            
+            let in_ea_neg = lNot ea in
+            let in_eb_neg = lNot eb in 
+            let in_s0_neg = lNot s0 in 
+            let in_s1_neg = lNot s1 in 
+            
+            let or4a_out = lOr4
+                (lAnd4 in0a in_s1_neg in_s0_neg in_ea_neg)
+                (lAnd4 in1a in_s1_neg s0 in_ea_neg)
+                (lAnd4 in2a s1 in_s0_neg in_ea_neg)
+                (lAnd4 in3a s1 s0 in_ea_neg)
+            in
+            let or4b_out = lOr4
+                (lAnd4 in0b in_s1_neg in_s0_neg in_eb_neg)
+                (lAnd4 in1b in_s1_neg s0 in_eb_neg)
+                (lAnd4 in2b s1 in_s0_neg in_eb_neg)
+                (lAnd4 in3b s1 s0 in_eb_neg)
+            in
+            (* Printf.printf "MUX153 OUT %s %s\n" (unitToStr2 ("or4a_out", or4a_out)) (unitToStr2 ("or4b_out", or4b_out)); *)
+            Ok (lab, or4a_out::or4b_out::xs)            (* most imported bits first *)  
+    
+            (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
+            
+          |[(state, _); (lab, _)] -> Error { desc = "s74hc153 FAIL missing input\n" } ;
+          | _ -> Error { desc = "s74hc153 FAIL missing unit input\n" } ;
+         end
+} *)
+
+
+
+
+
+
+
 type stateT = {
 
   tick: int;
@@ -354,26 +397,21 @@ let sMain : unit LogicUnit.solver = {
 
   solve = fun input -> 
     match input with
-    | [(lab, d::c::b::a::en_clk::clk::xs)] -> 
+    | [(lab, clk1::a::clkBase::clk2::clk3::xs)] -> 
 
-      (* a b c d is counter last state *)
-      let clk' = lNot clk  in
 
-      let ca0 = lXor clk a in
+      let ca0 = lNot clkBase (*lXor clk a in*) in
 
-      let a' = lOr (lAnd (lNot ca0) a) (lAnd (lNot a) ca0) in
-      let ca1 = lAnd a ca0 in
+      let a' = lOr (lAnd (lNot a) ca0) (lAnd (lNot ca0) a) in
+      let ca1 = lAnd a (lNot a') in
 
-      let b' = lOr (lAnd (lNot ca1) b) (lAnd (lNot b) ca1) in
-      let ca2 = lAnd3 b a ca1 in
+      let clk1' = lOr (lAnd (lNot clk1) ca1) (lAnd (lNot ca1) clk1) in
 
-      let c' = lOr (lAnd (lNot ca2) c) (lAnd (lNot c) ca2) in
-      let ca3 = lAnd4 a b c ca2 in
 
-      let d' = lOr (lAnd (lNot ca3) d) (lAnd (lNot d) ca3) in
-      let ca4 = lAnd5 a b c d ca3 in
 
-      Ok (lab, d'::c'::b'::a'::LS_1::clk'::ca4::[])
+
+
+      Ok (lab, clk1'::a'::ca0::clk1::clk2::[])
 
     | _ -> Error {desc="sMain.solver Err.No.: 1"}
 }
@@ -383,11 +421,11 @@ let rec test_loop (s: stateT) =
   (* Printf.printf ">>>...%d\n" s.tick; *)
   sMain.solve s.units >>= fun res ->
     Printf.printf ">>> %s\n" (unitToStr2 res);
-    let cont = match res with
+    (* let cont = match res with
                 | (lab, LS_1::LS_1::LS_1::LS_1::xs) -> true
                 | _ -> true
-                in
-    if s.tick > 0 && cont then 
+                in *)
+    if s.tick > 0 then 
 
       test_loop {tick = (s.tick - 1); units = [res]}
     else Ok []
@@ -400,17 +438,25 @@ let () =
   let _ = s2x74hc283_test in
   let _ = sGigatronALU_test in
 
-  let _ = match test_loop {tick = 48; units = [("test", l @ l @ l @ l @ l @ l @ l)] } with
+  let _ = match test_loop {tick = 48; units = [("test",  l @ l @ h @ l @ l)] } with
           | Ok m -> ()
           | Error e -> Printf.printf "test_loop FAIL - %s\n" e.desc; 
   in
-  Printf.printf "Bye, bye!\n" ; (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
+  
   Printf.printf "%s" (unitToStr2 ((n2Unit 0b0110 "b." 4 ) ++ (n2Unit 0b0011 "a." 4) ));
   Printf.printf "%s" (unitToStr2 ("Man", l @ h @ h @ l @ l @ l @ h @ h));
-  Printf.printf "%s" (unitToStr2 ("List", LS_0::LS_1::LS_1::LS_0::LS_0::LS_0::LS_1::LS_1::[]));
-  Printf.printf "%s\n" (unitToStr2 (n2Unit 0b01100011 "b." 8))
-
-
+  (* Printf.printf "%s" (unitToStr2 ("List", LS_0::LS_1::LS_1::LS_0::LS_0::LS_0::LS_1::LS_1::[])); *)
+  Printf.printf "%s\n" (unitToStr2 (n2Unit 0b01100011 "b." 8));
+  Printf.printf "%s\n" (unitToStr2 (unitToVectors (
+    "Vector", h @ h @ l @ h @ [(vector 0b01100011 8); (vector 0b01111111 8)]
+    )));
+  let b = lMap ("Bits", h @ l @ h @ l @ h) (fun a -> lNot(lOr a (Bit Int32.zero))) [] in
+  Printf.printf "%s\n" (unitToStr2 b);
+  let c = lMap ("Vector", [(vector 0b101010 6); (vector 0b111111 6)]) (fun a -> lNot(lAnd a (vector 0b110000 6))) [] in
+  Printf.printf "%s\n" (unitToStr2 c);
+  let d = ("Vector", [lNot(lAnd (vector 0b111111 6) (vector 0b110001 6))]) in
+  Printf.printf "%s\n" (unitToStr2 d);
+  Printf.printf "Bye, bye!\n" ; (* (unitToStr (n2Unit 0xaa "lab" 20)); *)
 
 
 
@@ -445,9 +491,9 @@ let () =
     | Ok o -> unitToNum o *)
 
 
-    (*  (us: unit solver) *)
+    (*  (us: unit list solver) *)
 
-    (* let solve_unit (lr: (unit linesResult) list) (us: unit solver): unit linesResult = 
+    (* let solve_unit (lr: (unit linesResult) list) (us: unit list solver): unit linesResult = 
 
     let rec f  (l: (unit linesResult) list)  : unit linesResult = 
         (* let x::xs = u in Printf.printf "solve_unit:%s" (resultToStr u); *)
