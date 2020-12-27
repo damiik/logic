@@ -345,40 +345,65 @@ let sGigatronALU_test : unit linesResult =
 
 
 
-(* let s74hc161 : unit solver = {
+let s74hc161 : unit solver = {
 
   solve = fun input -> begin match input with
 
-          | [(state, _); (lab, [])] -> Error { desc = "[s74hc153] missing input\n" } ;
-          | [(state, d::c::b::a::[]); (lab, pe::cep::cet::cp::mr::p3::p2::p1::p0::xs)] -> 
-          (* Printf.printf "MUX153 IN %s %s %s\n" (unitToStr2 ("es.eb.s1.s0", ea::eb::s1::s0::[])) (unitToStr2 ("ina", in3a::in2a::in1a::in0a::[])) (unitToStr2 ("inb", in3b::in2b::in1b::in0b::[])); *)
-            
-            let in_ea_neg = lNot ea in
-            let in_eb_neg = lNot eb in 
-            let in_s0_neg = lNot s0 in 
-            let in_s1_neg = lNot s1 in 
-            
-            let or4a_out = lOr4
-                (lAnd4 in0a in_s1_neg in_s0_neg in_ea_neg)
-                (lAnd4 in1a in_s1_neg s0 in_ea_neg)
-                (lAnd4 in2a s1 in_s0_neg in_ea_neg)
-                (lAnd4 in3a s1 s0 in_ea_neg)
-            in
-            let or4b_out = lOr4
-                (lAnd4 in0b in_s1_neg in_s0_neg in_eb_neg)
-                (lAnd4 in1b in_s1_neg s0 in_eb_neg)
-                (lAnd4 in2b s1 in_s0_neg in_eb_neg)
-                (lAnd4 in3b s1 s0 in_eb_neg)
-            in
-            (* Printf.printf "MUX153 OUT %s %s\n" (unitToStr2 ("or4a_out", or4a_out)) (unitToStr2 ("or4b_out", or4b_out)); *)
-            Ok (lab, or4a_out::or4b_out::xs)            (* most imported bits first *)  
-    
-            (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
-            
-          |[(state, _); (lab, _)] -> Error { desc = "s74hc153 FAIL missing input\n" } ;
-          | _ -> Error { desc = "s74hc153 FAIL missing unit input\n" } ;
-         end
-} *)
+    | [(_, [])] -> Error { desc = "[s74hc161] missing input\n" } ;
+    | [(lab, cp::ct::notPe::notMr::clockRise::loadVect::stateVect::xs)] -> 
+    (* Printf.printf "MUX153 IN %s %s %s\n" (unitToStr2 ("es.eb.s1.s0", ea::eb::s1::s0::[])) (unitToStr2 ("ina", in3a::in2a::in1a::in0a::[])) (unitToStr2 ("inb", in3b::in2b::in1b::in0b::[])); *)
+
+      let bits = signalToBitsArr stateVect in
+
+      (* tc will be used by other units in the same phase so must be calculated 
+      BEFORE unit state will be changed for next phase*)    
+      let tc = (lAnd5 bits.(0) bits.(1) bits.(2) bits.(3) ct) in 
+
+      if (isBit clockRise 1) then 
+
+        let d = signalToBitsArr loadVect in
+        let notB0 = lNot bits.(0) in
+        let notB1 = lNot bits.(1) in
+        let notB2 = lNot bits.(2) in
+        let notB3 = lNot bits.(3) in
+        let pe = lNot notPe in
+        let cet_Nand_cep = lNand cp ct in
+
+        bits.(0) <- lAnd notMr (lOr (lAnd pe d.(0)) 
+                                    (lAnd notPe
+                                          (lXnor (lNot cet_Nand_cep) notB0)
+                                    )
+                                );
+        bits.(1) <- lAnd notMr (lOr (lAnd pe d.(1)) 
+                                    (lAnd notPe
+                                          (lXnor (lNor cet_Nand_cep notB0) notB1)
+                                    )
+                                );
+        bits.(2) <- lAnd notMr (lOr (lAnd pe d.(2)) 
+                                    (lAnd notPe
+                                          (lXnor (lNor3 cet_Nand_cep notB0 notB1) notB2)
+                                    )
+                                );
+        bits.(3) <- lAnd notMr (lOr (lAnd pe d.(3)) 
+                                    (lAnd notPe
+                                          (lXnor (lNor4 cet_Nand_cep notB0 notB1 notB2) notB3)
+                                    )
+                                );
+
+
+        Ok (lab, (bitsArrToVector bits)::tc::xs)
+
+      else 
+        Ok (lab, (bitsArrToVector bits)::tc::xs)
+
+      (* Printf.printf "MUX153 OUT %s %s\n" (unitToStr2 ("or4a_out", or4a_out)) (unitToStr2 ("or4b_out", or4b_out)); *)
+
+      (* Array.iteri(fun i e -> Printf.printf "and4_out%d:%s" i (resultToStr e)) and4_out;  *)
+      
+    |[(lab, _)] -> Error { desc = "s74hc161 FAIL missing input\n" } ;
+    | _ -> Error { desc = "s74hc161 FAIL missing unit input\n" } ;
+    end
+}
 
 
 
@@ -397,8 +422,7 @@ let sMain : unit LogicUnit.solver = {
 
   solve = fun input -> 
     match input with
-    | [(lab, clk1::a::clkBase::clk2::clk3::xs)] -> 
-
+    | [(lab, clk1::a::clkBase::clk2::clk3::s74hc161_U3::s74hc161_U4::xs)] -> 
 
       let ca0 = lNot clkBase (*lXor clk a in*) in
 
@@ -408,10 +432,45 @@ let sMain : unit LogicUnit.solver = {
       let clk1' = lOr (lAnd (lNot clk1) ca1) (lAnd (lNot ca1) clk1) in
 
 
+      (* let r = lNand  *)
+       (* Printf.printf ">>> %s\n" (unitToStr2 ("bits:", [lNot bits.(3) ; lNot bits.(2) ; lNot bits.(1) ; lNot bits.(0)])); *)
 
+      (* let newStateVect = bitsArrToSignal (Array.map (fun b -> lNot b) bits) in *)
 
+      (* let clockRise = lAnd clk1 (lNot clk2) in
+      let newB0 = lOr (lAnd (lNot bits.(0)) clockRise) (lAnd (lNot clockRise) bits.(0)) in
+      let b0Rise = lAnd bits.(0) (lNot newB0) in
+      let newB1 = lOr (lAnd (lNot bits.(1)) b0Rise) (lAnd (lNot b0Rise) bits.(1)) in
+      let b1Rise = lAnd bits.(1) (lNot newB1) in
+      let newB2 = lOr (lAnd (lNot bits.(2)) b1Rise) (lAnd (lNot b1Rise) bits.(2)) in     
+      let b2Rise = lAnd bits.(2) (lNot newB2) in
+      let newB3 = lOr (lAnd (lNot bits.(3)) b2Rise) (lAnd (lNot b2Rise) bits.(3)) in *)
 
-      Ok (lab, clk1'::a'::ca0::clk1::clk2::[])
+      let clockRise = lAnd clk1 (lNot clk2) in
+      let ct = h in    (* /carry1 *)
+      let cp = h in    (* /carry2 *)
+      let notPe = h in (* /load *)
+      let notMr = h in (* /mr *)
+
+      [(lab, ct @ cp @ notPe @ notMr @ clockRise::(vector 0x7 4)::s74hc161_U3::xs)] |> s74hc161.solve >>= fun u3 ->
+     
+
+      begin match u3 with
+      | (_, [s74hc161_U3';tc']) -> 
+        [(lab, [tc'] @ cp @ notPe @ notMr @ clockRise::(vector 0xb 4)::s74hc161_U4::xs)] |> s74hc161.solve >>= fun u4 ->
+        (* to check: maybe this is wrong and both units have to solve in the same time - not in sequence *)
+        begin match u4 with
+        | (_, [s74hc161_U4';_]) -> 
+
+        let res = (lab, clk1'::a'::ca0::clk1::clk2::s74hc161_U3'::s74hc161_U4'::xs) in
+
+        if (isBit clockRise 1) then Printf.printf ">>> %s\n" (unitToStr2 res); 
+        Ok res;
+        |_ -> Error {desc="sMain.solver Err.No.: 1"}
+        end
+      |_ -> Error {desc="sMain.solver Err.No.: 1"}
+      end
+
 
     | _ -> Error {desc="sMain.solver Err.No.: 1"}
 }
@@ -420,7 +479,7 @@ let sMain : unit LogicUnit.solver = {
 let rec test_loop (s: stateT) = 
   (* Printf.printf ">>>...%d\n" s.tick; *)
   sMain.solve s.units >>= fun res ->
-    Printf.printf ">>> %s\n" (unitToStr2 res);
+    
     (* let cont = match res with
                 | (lab, LS_1::LS_1::LS_1::LS_1::xs) -> true
                 | _ -> true
@@ -438,7 +497,7 @@ let () =
   let _ = s2x74hc283_test in
   let _ = sGigatronALU_test in
 
-  let _ = match test_loop {tick = 48; units = [("test",  l @ l @ h @ l @ l)] } with
+  let _ = match test_loop {tick = 512; units = [("test", l @ l @ h @ l @ l @ [(vector 0b0000 4);(vector 0b0000 4)])] } with
           | Ok m -> ()
           | Error e -> Printf.printf "test_loop FAIL - %s\n" e.desc; 
   in
