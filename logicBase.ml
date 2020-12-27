@@ -54,6 +54,12 @@
     else if a == LS_0 || b == LS_0 then LS_1
     else
           LS_X *)
+    let lNand5 = fun (a: signalValueT) (b : signalValueT) (c : signalValueT) (d : signalValueT) (e : signalValueT) -> 
+    match (a,b,c,d,e) with
+    |(Bit a, Bit b, Bit c, Bit d, Bit e) -> Bit (Int32.lognot (Int32.logand a (Int32.logand b (Int32.logand c (Int32.logand d e)))))
+    | (Vector (a, l), Vector (b, _), Vector (c, _), Vector (d, _), Vector (e, _)) -> Vector (Int32.lognot ((Int32.logand a (Int32.logand b (Int32.logand c (Int32.logand d e))))), l)
+    |_ -> Bit Int32.max_int
+
 
     let lOr = fun (a: signalValueT) (b : signalValueT) -> 
     match (a,b) with
@@ -127,6 +133,12 @@
     else
           LS_0 *)
 
+    let lXnor = fun (a: signalValueT) (b : signalValueT) -> 
+    match (a,b) with
+    |(Bit a, Bit b) -> Bit (Int32.lognot (Int32.logxor a b)) 
+    | (Vector (a, l), Vector (b, _)) -> Vector ((Int32.lognot (Int32.logxor a b)), l)
+    |_ -> Bit Int32.max_int
+
     let lNot = fun (a: signalValueT) -> 
     match a with
     |Bit a -> Bit (Int32.logxor (Int32.of_int 0x1) a) 
@@ -180,3 +192,11 @@
                               ((Int32.logand mask1 v1') = (Int32.logand mask2 v2')) (* with masks vectors doesn't have to have the same length *)
                   |Bit _ -> false
                   end
+
+
+      (* test if bit is equal v1 *)
+      let isBit b1 v1 = 
+       match b1 with
+        | Bit b -> b = Int32.of_int v1
+        | _ -> false
+     

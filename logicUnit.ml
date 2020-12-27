@@ -53,14 +53,16 @@ open LogicBase
         | Bit a -> if a <= (Int32.one) && a >= (Int32.zero) then Printf.sprintf "%ld%s"a (f xs) else Printf.sprintf "{*}%s" (f xs)
         | Vector (a, l) -> 
             let mask = Int32.shift_right_logical (Int32.of_int 0xffffffff) (32 - l) in
-            Printf.sprintf "0x%lx:(%d),%s" (Int32.logand a mask) l (f xs);
+            Printf.sprintf " (0x%lx :%d),%s" (Int32.logand a mask) l (f xs);
       end
     in
     match out with
     | (lab, signals) -> Printf.sprintf "%s [ %s ]" lab (f signals)
 
-    (* list: [Bit Bit Bit Vector(8) Bit Bit Bit Bit] will be converted to: [Vector(3) Vector(12)] *)
-    let unitToVectors (out: unit) : unit =
+
+
+
+    let signalsToVectors (s: signalValueT list) : signalValueT list =
 
     let rec f = fun signals' acc b ->
       match signals' with
@@ -79,12 +81,57 @@ open LogicBase
         | Vector a -> (f xs ((Vector a)::acc) 0); (* if it's a Vector just copy them and reset current bit level*)
         end
     in
+    f s [] 0
+
+    (* list: [Bit Bit Bit Vector(8) Bit Bit Bit Bit] will be converted to: [Vector(3) Vector(12)] *)
+    let unitToVectors (out: unit) : unit =
+
     let (lab, signals) = out in
-    (lab, (f signals [] 0))
-    (* match out with
-    | (_, signals) -> (f signals 0) *)
+    (lab, (signalsToVectors signals))
 
 
+    let signalsToBits (s: signalValueT list) : signalValueT list =
+
+    let rec f = fun signals' acc ->
+      match signals' with
+      | [] -> acc
+      | s::xs -> begin match s with
+        | Bit a -> f xs ((Bit a)::acc);
+        | Vector (v, 0) -> f xs acc;
+        | Vector (v, l) -> 
+          let mask1 = Int32.shift_right_logical (Int32.of_int 0xffffffff) (32 - (l-1)) in
+          f ((Vector (Int32.logand mask1 v, l-1))::xs) (acc @ [Bit (Int32.shift_right_logical v (l-1))]);
+      end
+    in
+    f s []
+
+    let signalToBitsArr (s: signalValueT) : signalValueT array =
+
+      let rec f = fun v l acc ->
+        if l = 0 then acc
+        else 
+          let mask1 = Int32.shift_right_logical (Int32.of_int 0xffffffff) (32 - (l-1)) in
+          (acc.(l-1) <- Bit (Int32.shift_right_logical v (l-1)));
+          f (Int32.logand mask1 v) (l-1) acc
+      in
+      match s with
+        |Vector (s', l) -> f s' l (Array.make l (Bit Int32.zero))
+        |Bit a -> (Array.make 1 (Bit a))
+
+
+    let bitsArrToVector(a: signalValueT array) : signalValueT =
+
+      let r = Array.fold_left (fun acc e -> 
+      
+        match e with
+        | Bit bv -> 
+          let (v, l) = acc in
+            (Int32.add v (Int32.shift_left bv l), l+1)
+        | _ -> acc
+      
+       )  (Int32.zero, 0) a 
+       in
+       Vector r   
 
     (* short ver. *)
     (* let unitToStr2 (out: unit) : string =
